@@ -1,0 +1,392 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="An interactive bilingual map of Hong Kong building control documents: Buildings Ordinance and regulations, BD practice notes and codes, LandsD, PlanD/TPB and FSD guidance, with the links between them. A personal hobby project by AW Design, not an official Government site.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="香港建築規例關係地圖 HK Building Regulations Map">
+<meta property="og:description" content="An interactive bilingual map of Hong Kong building control documents: Buildings Ordinance and regulations, BD practice notes and codes, LandsD, PlanD/TPB and FSD guidance, with the links between them. A personal hobby project by AW Design, not an official Government site.">
+<meta property="og:image" content="og.png">
+<meta name="twitter:card" content="summary_large_image">
+<title>香港建築規例關係地圖</title>
+<style>
+:root{
+  --cream:#f5ede4; --paper:#fffdf9; --ink:#1a1410; --terra:#c4763c; --muted:#8b7355; --ink2:#4a3d33;
+  --rule:#e3d6c6; --soft:#efe4d6;
+  --serif: Georgia, "Times New Roman", serif;
+  --zh: "Microsoft JhengHei", "Noto Sans TC", "PingFang TC", sans-serif;
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px); --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+  --top:calc(64px + var(--sat)); --foot:calc(32px + var(--sab));
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#f5ede4;color:var(--ink);font-family:var(--serif);-webkit-text-size-adjust:100%}
+.zh{font-family:var(--zh)}
+button,select,input{font:inherit;color:inherit}
+
+/* ---------- top bar ---------- */
+.top{position:fixed;left:0;right:0;top:0;height:var(--top);display:flex;align-items:center;gap:22px;padding:var(--sat) max(24px,var(--sar)) 0 max(24px,var(--sal));background:var(--paper);border-bottom:1px solid var(--rule);z-index:30}
+.ttl{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.ttl .t-zh{font-family:var(--zh);font-weight:700;font-size:19px;letter-spacing:.06em;white-space:nowrap}
+.ttl .t-en{font-style:italic;font-size:13px;color:var(--muted);letter-spacing:.02em;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--rule);border-radius:2px;background:var(--cream);padding:2px;margin-left:8px}
+.seg button{border:0;background:none;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--muted);border-radius:1px}
+.seg button .zh{font-size:13px;margin-right:6px}
+.seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(26,20,16,.12)}
+.seg button.on .zh{color:var(--terra)}
+.spacer{flex:1}
+.search{position:relative}
+.search input{width:300px;height:36px;border:1px solid var(--rule);background:var(--cream);border-radius:2px;padding:0 12px 0 32px;font:14px var(--serif);outline:none;-webkit-appearance:none}
+.search input:focus{border-color:var(--terra);background:var(--paper)}
+.search svg{position:absolute;left:10px;top:11px}
+.search ul{position:absolute;right:0;top:40px;width:420px;max-height:460px;overflow:auto;margin:0;padding:4px 0;list-style:none;background:var(--paper);border:1px solid var(--rule);box-shadow:0 12px 34px rgba(26,20,16,.14);display:none;z-index:40}
+.search ul.open{display:block}
+.search li{padding:7px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline;font-size:13px}
+.search li:hover,.search li.act{background:var(--soft)}
+.search li .sw{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
+.search li .c{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:62%}
+.search li .n{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.search li .tag{flex:none;margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--terra);border:1px solid var(--terra);padding:0 5px;white-space:nowrap}
+.search li.hd{cursor:default;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:8px 12px 3px;background:none}
+.wm{font-size:15px;letter-spacing:.32em;white-space:nowrap;display:flex;align-items:center}
+.wm i{font-style:normal;display:inline-block;width:1.5px;height:18px;background:var(--terra);margin:0 .5em 0 .22em}
+
+/* ---------- stage + overlays ---------- */
+#stage{position:fixed;left:0;right:0;top:var(--top);bottom:var(--foot);touch-action:none;background:#f5ede4}
+#labels{position:fixed;left:0;right:0;top:var(--top);bottom:var(--foot);pointer-events:none;overflow:hidden;z-index:5}
+.lb{position:absolute;left:0;top:0;white-space:nowrap;text-align:center;line-height:1.2;will-change:transform;background:rgba(255,253,249,.84);padding:2px 6px 3px;border-radius:2px;box-shadow:0 1px 2px rgba(26,20,16,.06)}
+.lb b{display:block;font-size:12px;color:var(--ink);font-weight:bold;letter-spacing:.01em}
+.lb span{display:block;font-family:var(--zh);font-size:10.5px;color:#7a6652}
+.lb.sel{background:var(--ink);box-shadow:0 2px 8px rgba(26,20,16,.25)}
+.lb.sel b{font-size:14px;color:var(--paper)}
+.lb.sel span{font-size:12px;color:#e8d9c6}
+.cl{position:absolute;left:0;top:0;white-space:nowrap;text-align:center;will-change:transform;color:var(--muted);
+  text-shadow:0 0 2px #f5ede4,0 0 4px #f5ede4,0 0 7px #f5ede4,0 0 12px #f5ede4}
+.cl b{display:block;font-weight:normal;font-size:12px;letter-spacing:.26em;text-transform:uppercase}
+.cl span{display:block;font-family:var(--zh);font-size:12px;letter-spacing:.3em;margin-top:2px}
+#loading{position:fixed;inset:0;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;font-size:15px;color:var(--muted);font-style:italic;z-index:4;pointer-events:none}
+#loading .zh{font-style:normal;font-size:13px}
+.tip{background:var(--paper);border:1px solid var(--rule);padding:6px 9px;font:13px var(--serif);color:var(--ink);box-shadow:0 6px 18px rgba(26,20,16,.12);max-width:320px;white-space:normal}
+.tip .z{font-family:var(--zh);color:var(--muted);font-size:12px}
+.scene-tooltip,.float-tooltip-kap{padding:0!important;background:none!important;border-radius:0!important;color:var(--ink)!important}
+
+/* ---------- left: legend + filters ---------- */
+#side{position:fixed;left:16px;top:calc(var(--top) + 16px);z-index:15;width:282px;max-height:calc(100% - var(--top) - var(--foot) - 250px);overflow:auto;background:rgba(255,253,249,.95);border:1px solid var(--rule);font-size:12.5px;box-shadow:0 8px 26px rgba(26,20,16,.06)}
+#side .shd{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--rule);cursor:pointer;user-select:none}
+#side .shd h3{margin:0;font-weight:normal;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+#side .shd .zh{letter-spacing:.1em;text-transform:none;margin-left:6px}
+#side.min .sbd{display:none}
+#side .sbd{padding:4px 14px 12px}
+#side h4{margin:12px 0 6px;font-weight:normal;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+#side h4 .zh{letter-spacing:.1em;margin-left:5px}
+.row{display:flex;align-items:center;gap:8px;padding:3px 0;line-height:1.25}
+.row label{display:flex;align-items:center;gap:8px;cursor:pointer;flex:1;min-width:0}
+.row .zh{color:var(--muted);font-size:11px;display:block}
+.row .ct{margin-left:auto;color:var(--muted);font-size:11px;padding-left:8px}
+.row input[type=checkbox]{margin:0;accent-color:var(--terra);width:13px;height:13px}
+.sw{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.sw.sq{border-radius:2px}
+.row.dom{cursor:pointer;border-radius:2px;padding-left:3px}
+.row.dom:hover{background:var(--soft)}
+.row.dom.on{background:var(--soft);box-shadow:inset 2px 0 0 var(--terra)}
+.row .t{min-width:0}
+.row .t.one .zh{display:inline;margin-left:4px}
+#linesbox{position:fixed;left:16px;bottom:calc(var(--foot) + 16px);z-index:15;width:282px;background:rgba(255,253,249,.95);border:1px solid var(--rule);padding:4px 14px 10px;font-size:12px;box-shadow:0 8px 26px rgba(26,20,16,.06)}
+#linesbox h4{margin:8px 0 5px;font-weight:normal;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+#linesbox h4 .zh{letter-spacing:.1em;margin-left:5px}
+#linesbox .lnk .zh{font-size:11px}
+#side select{width:100%;height:30px;border:1px solid var(--rule);background:var(--cream);font-size:12.5px;padding:0 6px}
+.sep{height:1px;background:var(--rule);margin:10px 0 2px}
+.lnk{display:flex;align-items:center;gap:9px;padding:3px 0;white-space:normal;line-height:1.3}
+.lnk svg{flex:none}
+.lnk .zh{display:block;color:var(--muted);font-size:11.5px}
+.note{color:var(--muted);font-size:11.5px;line-height:1.4}
+
+/* ---------- right panel ---------- */
+#panel{position:fixed;top:calc(var(--top) + 14px);right:14px;bottom:calc(var(--foot) + 14px);width:420px;z-index:25;background:var(--paper);border:1px solid var(--rule);box-shadow:0 18px 50px rgba(26,20,16,.14);transform:translateX(calc(100% + 30px));transition:transform .35s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+#panel.open{transform:none}
+#panel .grab{display:none}
+#panel .hd{padding:20px 24px 14px;border-bottom:1px solid var(--rule);position:relative}
+#panel .x{position:absolute;right:10px;top:10px;width:32px;height:32px;border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted)}
+#panel .kind{display:flex;align-items:center;gap:8px;padding-right:34px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);line-height:1.4}
+#panel .kind .zh{letter-spacing:.06em}
+#panel .code{font-size:25px;margin:8px 0 4px;letter-spacing:.01em;line-height:1.2}
+#panel .en{font-size:15.5px;font-style:italic;line-height:1.35}
+#panel .nzh{font-family:var(--zh);font-size:15.5px;margin-top:3px;letter-spacing:.03em;line-height:1.45}
+#panel .meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;font-size:12px;color:var(--muted)}
+#panel .meta b{font-weight:normal;color:var(--ink)}
+#panel .bd{padding:14px 24px 20px;overflow:auto;flex:1;overscroll-behavior:contain}
+#panel .sum{font-size:14px;line-height:1.55;margin:0}
+#panel .sumzh{font-family:var(--zh);font-size:13.5px;line-height:1.75;color:var(--ink2);margin:6px 0 0}
+#panel .warn{margin-top:12px;font-size:12px;line-height:1.45;color:#8a5a2b;background:#fbf1e4;border-left:2px solid var(--terra);padding:7px 10px}
+#panel .warn .zh{display:block;font-size:11.5px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--cream);padding:3px 8px;font-size:12px;line-height:1.3;border-radius:11px}
+.chip .zh{color:var(--muted);font-size:11.5px}
+.chip.dm{border-color:transparent;color:#fff}
+.chip.dm .zh{color:rgba(255,255,255,.85)}
+#panel h5{margin:22px 0 7px;font-weight:normal;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+#panel h5 .zh{letter-spacing:.06em}
+#panel h5 .n{margin-left:auto;letter-spacing:0;font-size:11px}
+#panel ul{list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+#panel li{border-bottom:1px solid var(--rule);font-size:13px}
+#panel li .m{display:flex;align-items:center;gap:9px;padding:7px 2px;cursor:pointer}
+#panel li .m:hover{background:var(--soft)}
+#panel li .sw{width:8px;height:8px}
+#panel li .c{font-weight:bold;white-space:nowrap;max-width:48%;overflow:hidden;text-overflow:ellipsis}
+#panel li .n{color:var(--muted);font-family:var(--zh);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#panel li .r{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+#panel li .qb{border:0;background:none;cursor:pointer;color:var(--terra);font-size:11px;white-space:nowrap;padding:2px 4px}
+#panel li .qb:hover{text-decoration:underline}
+#panel .qs{display:none;padding:2px 2px 10px 17px}
+#panel li.ex .qs{display:block}
+#panel blockquote{margin:6px 0 0;padding:6px 10px;border-left:2px solid var(--rule);background:var(--cream);font-size:12.5px;line-height:1.5;color:var(--ink2);word-break:break-word}
+#panel blockquote .pg{display:block;margin-top:3px;font-size:11px;color:var(--muted);font-style:italic}
+#panel .why{padding:0 2px 10px 17px;font-size:12.5px;line-height:1.5;color:var(--ink2)}
+#panel .why .zh{display:block;margin-top:3px;font-size:12.5px;line-height:1.65}
+#panel .why .ev{margin-top:5px;font-size:11px;color:var(--muted);font-style:italic}
+#panel .more{border:0;background:none;color:var(--terra);cursor:pointer;padding:8px 2px;font-size:12px}
+#panel .crumb{font-size:12.5px;line-height:1.7;color:var(--ink2)}
+#panel .crumb a{color:var(--ink2);cursor:pointer;border-bottom:1px dotted var(--muted)}
+#panel .src{display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px;padding:12px 24px;border-top:1px solid var(--rule);font-size:13px}
+#panel .src a{white-space:nowrap;color:var(--terra);text-decoration:none;border-bottom:1px solid currentColor}
+#panel .src span{color:var(--muted);font-size:11px;flex-basis:100%}
+
+/* ---------- zoom + footer ---------- */
+.zoombar{position:fixed;right:18px;bottom:calc(var(--foot) + 16px);z-index:15;display:flex;flex-direction:column;background:var(--paper);border:1px solid var(--rule)}
+.zoombar button{width:36px;height:34px;border:0;background:none;cursor:pointer;font-size:18px;line-height:1}
+.zoombar button+button{border-top:1px solid var(--rule)}
+.zoombar button:hover{color:var(--terra)}
+body.panel-open .zoombar{right:452px}
+.foot{position:fixed;left:0;right:0;bottom:0;height:var(--foot);display:flex;align-items:center;gap:18px;padding:0 max(20px,var(--sar)) var(--sab) max(20px,var(--sal));background:var(--paper);border-top:1px solid var(--rule);font-size:12px;color:var(--ink2);z-index:30;white-space:nowrap}
+.foot .zh{font-size:11.5px}
+.foot .aw{letter-spacing:.2em;font-size:11px}
+.foot .st{margin-left:auto;color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.foot .fps{color:var(--muted);font-size:11px;min-width:0}
+
+/* ---------- S7: status (superseded / duplicate), faded rows, About ---------- */
+#panel .stat{margin:0 0 12px;font-size:12.5px;line-height:1.5;color:#4a3d33;background:#efe7dc;border-left:2px solid #8b7355;padding:7px 10px}
+#panel .stat .zh{display:block;font-size:12px;color:#6b5a4a}
+#panel .stat a,#panel .info a{color:#1a1410;cursor:pointer;border-bottom:1px dotted #8b7355}
+#panel .info{margin-top:10px;font-size:12px;line-height:1.5;color:#4a3d33}
+#panel .info .zh{display:block;font-size:11.5px;color:#6b5a4a}
+#panel.faded .code,#panel.faded .en,#panel.faded .nzh{color:#8b7355}
+#panel li.old .c,#panel li.old .n{opacity:.55}
+.search li.old .c,.search li.old .n{opacity:.55}
+.search li .tag.o{color:#8b7355;border-color:#cbbfae}
+.abt{border:1px solid #e3d6c6;background:#f5ede4;height:32px;padding:0 12px;border-radius:2px;cursor:pointer;font-size:13px;white-space:nowrap;color:#1a1410;flex:none}
+.abt .zh{margin-left:5px;font-size:12.5px;color:#c4763c}
+.abt:hover{border-color:#c4763c}
+#about{position:fixed;left:0;top:0;right:0;bottom:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(26,20,16,.38);padding:calc(16px + var(--sat)) 16px calc(16px + var(--sab))}
+#about.open{display:flex}
+#about .box{position:relative;background:#fffdf9;color:#1a1410;border:1px solid #e3d6c6;box-shadow:0 24px 70px rgba(26,20,16,.28);width:100%;max-width:880px;max-height:100%;overflow:auto;overscroll-behavior:contain;padding:30px 36px 26px}
+#about .x{position:absolute;right:10px;top:10px;width:36px;height:36px;border:0;background:none;font-size:24px;cursor:pointer;color:#8b7355}
+#about .kick{font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:#8b7355}
+#about h2{margin:6px 0 2px;font-weight:normal;font-size:26px;line-height:1.25;padding-right:30px}
+#about h2 .zh{display:block;font-size:20px;font-weight:700;letter-spacing:.06em;margin-top:4px}
+#about h3{margin:24px 0 10px;font-weight:normal;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#8b7355;border-bottom:1px solid #e3d6c6;padding-bottom:6px}
+#about h3 .zh{letter-spacing:.08em;margin-left:6px}
+#about .two{display:grid;grid-template-columns:1fr 1fr;gap:10px 32px}
+#about p,#about li{font-size:14px;line-height:1.6;margin:0 0 8px;color:#1a1410}
+#about .zh p,#about .zh li{font-family:var(--zh);font-size:13.5px;line-height:1.8;color:#4a3d33}
+#about ul{margin:0;padding-left:18px}
+#about li::marker{color:#c4763c}
+#about table{border-collapse:collapse;width:100%;font-size:13px}
+#about td{padding:5px 8px 5px 0;border-bottom:1px solid #efe4d6;vertical-align:top;color:#1a1410}
+#about td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;padding-right:0}
+#about td .zh{display:block;font-size:12px;color:#8b7355}
+#about tr.tot td{border-bottom:0;font-weight:bold}
+#about .key{display:inline-block;vertical-align:-1px;margin-right:6px}
+#about .cred{margin-top:24px;padding-top:14px;border-top:1px solid #e3d6c6;display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:12.5px;color:#4a3d33}
+#about .cred .wm{font-size:13px;color:#1a1410}
+@media (max-width:768px){
+  .abt{height:30px;padding:0 10px;font-size:12px}
+  .abt .en{display:none}
+  .abt .zh{margin-left:0}
+  #about{padding:calc(10px + var(--sat)) 10px calc(10px + var(--sab));align-items:stretch}
+  #about .box{padding:22px 18px 18px}
+  #about h2{font-size:21px}
+  #about h2 .zh{font-size:17px}
+  #about .two{grid-template-columns:1fr;gap:2px}
+  #about p,#about li{font-size:13.5px}
+}
+
+/* ---------- phones ---------- */
+@media (max-width:768px){
+  :root{--top:calc(56px + var(--sat));--foot:calc(44px + var(--sab))}
+  .top{padding:var(--sat) 16px 0 16px;gap:10px}
+  .ttl .t-zh{font-size:15px}
+  .ttl .t-en{font-size:10.5px}
+  .seg{position:fixed;left:16px;top:calc(var(--top) + 56px);margin:0;z-index:16;background:rgba(245,237,228,.95)}
+  .seg button{padding:5px 9px;font-size:12px}
+  .seg button .en{display:none}
+  .search{position:fixed;left:16px;right:16px;top:calc(var(--top) + 10px)}
+  .search input{width:100%;background:var(--paper)}
+  .search ul{left:0;width:auto;max-height:360px}
+  .wm{font-size:11px;letter-spacing:.24em}
+  .wm i{height:14px}
+  #side{top:auto;bottom:calc(var(--foot) + 10px);left:16px;width:auto;right:68px;max-height:58%}
+  #side .sbd{padding:2px 12px 10px}
+  #side.min{right:auto}
+  .zoombar{right:16px;bottom:calc(var(--foot) + 10px)}
+  body.panel-open .zoombar{right:16px}
+  .foot{flex-wrap:wrap;gap:0 10px;padding:4px 16px var(--sab);height:var(--foot);align-content:center;white-space:normal;line-height:1.3;font-size:10.5px}
+  .foot .zh{font-size:10px}
+  .foot .st,.foot .fps,.foot .hint{display:none}
+  .cl b{font-size:10px;letter-spacing:.14em}
+  .cl span{font-size:10px;letter-spacing:.16em}
+  .lb b{font-size:11px}.lb span{font-size:10px}
+  #panel{top:auto;left:0;right:0;bottom:0;width:auto;height:46%;transition:transform .35s cubic-bezier(.2,.8,.2,1),height .3s;border-left:0;border-right:0;border-bottom:0;border-radius:14px 14px 0 0;transform:translateY(105%);z-index:35}
+  #panel.full{height:86%}
+  #panel .grab{display:block;width:56px;height:5px;border-radius:3px;background:var(--rule);margin:8px auto 0;cursor:pointer;box-shadow:0 0 0 10px transparent}
+  #panel .hd{padding:8px 18px 10px}
+  #panel .code{font-size:20px;margin-top:4px}
+  #panel .en,#panel .nzh{font-size:14px}
+  #panel .bd{padding:10px 18px}
+  #panel .src{padding:10px 18px calc(14px + var(--sab))}
+}
+#about .disc{border:1px solid #c4763c;background:#fbf3ea;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.55}
+#about .disc b{display:block;margin-bottom:4px;color:#8a4a1c}
+#about .disc b .zh{margin-left:8px}
+#about .disc p{margin:4px 0}
+#notice{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--foot) + 14px);z-index:40;max-width:min(560px,calc(100% - 32px));display:flex;gap:12px;align-items:center;background:#fffdf9;border:1px solid #c4763c;padding:10px 12px 10px 14px;font-size:13px;line-height:1.45;color:#1a1410;box-shadow:0 4px 18px rgba(26,20,16,.12)}
+#notice p{margin:0}
+#notice .zh{display:block;font-family:var(--zh)}
+#notice button{flex:none;border:1px solid #c4763c;background:#c4763c;color:#fffdf9;padding:6px 14px;cursor:pointer}
+#notice button:focus-visible{outline:2px solid #1a1410;outline-offset:2px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="ttl"><span class="t-zh">香港建築規例關係地圖</span><span class="t-en">HK Building Regulations Map</span></div>
+  <div class="seg" id="mode" role="group" aria-label="Layout">
+    <button data-m="dept" class="on"><span class="zh">按部門</span><span class="en">By department</span></button>
+    <button data-m="domain"><span class="zh">按範疇</span><span class="en">By domain</span></button>
+  </div>
+  <div class="spacer"></div>
+  <div class="search">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8b7355" stroke-width="1.5"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
+    <input id="q" type="search" placeholder="Code, title or concept 編號、名稱或概念" autocomplete="off" aria-label="Search">
+    <ul id="qres"></ul>
+  </div>
+  <button class="abt" id="abtb" aria-haspopup="dialog" aria-controls="about"><span class="en">About</span><span class="zh">關於</span></button>
+  <div class="wm">AW<i></i>DESIGN</div>
+</header>
+
+<div id="loading"><span id="loadt">Arranging the documents and provisions…</span><span class="zh">正在排列文件及條文</span></div>
+<div id="stage"></div>
+<div id="labels"></div>
+
+<aside id="side">
+  <div class="shd" id="sideh"><h3>Legend &amp; filters<span class="zh">圖例及篩選</span></h3><span id="sidet" style="color:var(--muted)">−</span></div>
+  <div class="sbd" id="sideb"></div>
+</aside>
+
+<aside id="panel" aria-live="polite">
+  <div class="grab"></div>
+  <div class="hd">
+    <button class="x" id="px" aria-label="Close">×</button>
+    <div class="kind" id="pkind"></div>
+    <div class="code" id="pcode"></div>
+    <div class="en" id="pen"></div>
+    <div class="nzh" id="pzh"></div>
+    <div class="meta" id="pmeta"></div>
+  </div>
+  <div class="bd" id="pbody"></div>
+  <div class="src" id="psrc"></div>
+</aside>
+
+<div class="zoombar"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit all" style="font-size:13px">⤢</button></div>
+
+<footer class="foot">
+  <span>Personal hobby project, not a government website. Navigation aid, not legal advice. <span class="zh">個人興趣項目，並非政府網站；僅供導航，並非法律意見。</span></span>
+  <span>Data checked September 2026.</span>
+  <span class="aw">AW DESIGN</span>
+  <span class="st" id="stats"></span>
+  <span class="fps" id="fps"></span>
+</footer>
+
+<div id="notice" role="note">
+  <p><b>Personal hobby project.</b> Not an official Hong Kong Government website and not legal advice. <span class="zh">個人興趣項目，並非香港特區政府官方網站，亦非法律意見。</span></p>
+  <button id="noticex" type="button">OK</button>
+</div>
+
+<div id="about" role="dialog" aria-modal="true" aria-labelledby="abth">
+  <div class="box">
+    <button class="x" id="abtx" aria-label="Close">×</button>
+    <div class="kick">About <span class="zh">關於本圖</span></div>
+    <h2 id="abth">HK Building Regulations Map<span class="zh">香港建築規例關係地圖</span></h2>
+
+    <div class="disc">
+      <b>Disclaimer<span class="zh">免責聲明</span></b>
+      <p>This is a personal hobby project by Anzon Wong (AW Design). It is not an official website and does not represent the Government of the Hong Kong Special Administrative Region, the Buildings Department, the Lands Department, the Planning Department, the Town Planning Board or the Fire Services Department, and is not endorsed by any of them. It is a navigation aid only and is not legal or professional advice. Always rely on the official documents.</p>
+      <p class="zh">本網站是 Anzon Wong（AW Design）的個人興趣項目，並非官方網站，不代表香港特別行政區政府、屋宇署、地政總署、規劃署、城市規劃委員會或消防處，亦未經上述任何機構認可。本網站只供導航參考，並非法律或專業意見，一切以官方文件為準。</p>
+    </div>
+
+    <h3>What this is<span class="zh">簡介</span></h3>
+    <div class="two">
+      <div><p>An AW Design interactive map of Hong Kong's building control documents. The Buildings Ordinance and its regulations, practice notes, codes, circular letters and the related Lands, Planning and Fire Services documents are drawn as one connected network, so you can see what cites what and follow a subject across departments.</p></div>
+      <div class="zh"><p>AW Design 製作的香港建築管制文件互動地圖。《建築物條例》及其規例、作業備考、守則、通函，以及地政、規劃及消防的相關文件，繪成一個互相連接的網絡，讓讀者看清文件之間的引用關係，並可跨部門追蹤同一課題。</p></div>
+    </div>
+
+    <h3>Sources<span class="zh">資料來源</span></h3>
+    <table>
+      <tr><td>Buildings Department practice notes (PNAP, PNRC, PNBI)<span class="zh">屋宇署作業備考</span></td><td class="n" data-s="PNAP ADM,PNAP APP,PNAP ADV,PNRC,PNBI"></td></tr>
+      <tr><td>Joint Practice Notes (JPN)<span class="zh">聯合作業備考</span></td><td class="n" data-s="JPN"></td></tr>
+      <tr><td>Buildings Department codes of practice, design manuals and guidelines<span class="zh">屋宇署作業守則、設計手冊及指引</span></td><td class="n" data-s="BD Code of Practice / Design Manual,BD Guideline"></td></tr>
+      <tr><td>Buildings Department circular letters<span class="zh">屋宇署通函</span></td><td class="n" data-s="BD Circular Letter"></td></tr>
+      <tr><td>Lands Department LAO Practice Notes<span class="zh">地政總署地政處作業備考</span></td><td class="n" data-s="LAO Practice Note"></td></tr>
+      <tr><td>Planning Department / Town Planning Board Planning Guidelines<span class="zh">規劃署／城市規劃委員會規劃指引</span></td><td class="n" data-s="TPB Planning Guideline"></td></tr>
+      <tr><td>Fire Services Department codes, circular letters and notices<span class="zh">消防處守則、通函及通告</span></td><td class="n" data-s="FSD Circular Letter,FSD Technical Guidance,FSD Code of Practice,FSD Fire Protection Notice"></td></tr>
+      <tr class="tot"><td>Documents<span class="zh">文件總數</span></td><td class="n" data-c="documents"></td></tr>
+      <tr><td>Cap 123 and its subsidiary legislation, from Hong Kong e-Legislation: <span data-k="regulation"></span> regulations and <span data-k="section,schedule_section"></span> sections, repealed ones included and drawn faded<span class="zh">《建築物條例》（第123章）及其附屬法例，取自電子版香港法例；已廢除的條文亦予保留，以淡色顯示</span></td><td class="n" data-c="provisions"></td></tr>
+      <tr><td>Other ordinances cited by the documents (shown, not analysed)<span class="zh">文件引用的其他條例（只作顯示）</span></td><td class="n" data-g="EXT"></td></tr>
+    </table>
+    <p style="margin-top:10px;font-size:13px;color:#4a3d33">Data checked September 2026. <span class="zh" style="font-family:var(--zh)">資料核對於2026年9月。</span></p>
+
+    <h3>Method<span class="zh">製作方法</span></h3>
+    <div class="two">
+      <div><ul>
+        <li><svg class="key" width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#a38a70" stroke-width="1.8"/></svg><b>Solid lines</b> (<span data-c="solid"></span>) are citations found in the documents' own text. Each one carries the quoted sentence and page.</li>
+        <li><svg class="key" width="26" height="8"><line x1="0" y1="4" x2="26" y2="4" stroke="#2f2520" stroke-width="1.8" stroke-dasharray="4 3"/></svg><b>Dashed lines</b> (<span data-c="dashed"></span>) are links suggested by AI. Each one was checked against both documents and given a written reason.</li>
+        <li><b>Summaries</b> were written by AI from the full text of each document, then checked against it. Where no source text was available the summary is marked "Summary from title only" (<span data-c="title_only"></span> documents).</li>
+        <li><b>Topic areas</b> (the coloured regions and domains) use the Buildings Department's own vocabulary. Topics are never drawn as lines.</li>
+      </ul></div>
+      <div class="zh"><ul>
+        <li><b>實線</b>（<span data-c="solid"></span> 條）是文件原文中明確的引用，每條均附原文引句及頁碼。</li>
+        <li><b>虛線</b>（<span data-c="dashed"></span> 條）是 AI 建議的關係，每條均已對照兩份文件核實，並附書面理由。</li>
+        <li><b>摘要</b>由 AI 根據每份文件全文撰寫，再以原文核對。未能取得原文的文件，摘要註明「摘要只根據標題撰寫」（共 <span data-c="title_only"></span> 份）。</li>
+        <li><b>範疇及主題</b>（彩色區域）採用屋宇署本身的分類用語，主題不以連線表示。</li>
+      </ul></div>
+    </div>
+
+    <h3>Limits<span class="zh">使用限制</span></h3>
+    <div class="two">
+      <div><ul>
+        <li>This is a navigation aid, not legal advice.</li>
+        <li>Always read the official source. Every document links to it.</li>
+        <li>Some documents are superseded, repealed or duplicated. They are kept for reference and drawn faded, with a note naming the replacement. Some have no Chinese version; where the Chinese title or summary is ours, the panel says so.</li>
+        <li>Dates come from the documents themselves, or from the department's index where the document is undated.</li>
+      </ul></div>
+      <div class="zh"><ul>
+        <li>本圖只屬導航工具，並非法律意見。</li>
+        <li>請以官方原文為準，每份文件均附官方連結。</li>
+        <li>部分文件已被取代、廢除或與其他文件重複，現予保留以供參考，並以淡色顯示及註明取代文件。部分文件沒有中文版；如中文標題或摘要由本站撰寫，資料欄會加以說明。</li>
+        <li>日期取自文件本身；如文件未有註明日期，則取自部門索引。</li>
+      </ul></div>
+    </div>
+
+    <div class="cred"><span class="wm">AW<i></i>DESIGN</span><span>AW Design · Anzon Wong</span></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="layout.js"></script>
+<script src="app.js"></script>
+<script>
+(function(){var n=document.getElementById('notice');if(!n)return;var k='hkmap_notice_ok';
+try{if(localStorage.getItem(k)==='1'){n.hidden=true;}}catch(e){}
+document.getElementById('noticex').addEventListener('click',function(){n.hidden=true;try{localStorage.setItem(k,'1');}catch(e){}});})();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# private review notes, never committed
+_privacy_scan.md
+
+# pipeline working data: downloads, extracted text, OCR, intermediates
+work/
+pipeline/graph/
+pipeline/*.json
+artifact/
+__pycache__/
+*.pyc
+.env
+desktop.ini
+Thumbs.db
+.DS_Store
