@@ -68,7 +68,7 @@
   L.forEach(l => { l.source = l.s0; l.target = l.t0; N[l.s0].adj.push(l); N[l.t0].adj.push(l); });
 
   // ---------------- state ----------------
-  const S = { mode: 'dept', leg: false, bridges: true, dept: { BD: true, FSD: true, LandsD: true, PlanD: true, LEG: true, EXT: true }, dom: 'all', sel: null, concept: null, hiN: new Set(), hiL: new Set() };
+  const S = { mode: 'dept', leg: false, bridges: true, dept: { BD: true, FSD: true, LandsD: true, PlanD: true, LEG: true, EXT: true }, dom: 'all', sel: null, concept: null, hiN: new Set(), hiL: new Set(), pv: null, rowsM: null, col: false };
   const shownN = n => S.dept[n.g] && (S.dom === 'all' || n.dm === S.dom) && (S.leg || !HIDE_K.has(n.k));
   function applyFilter() {
     N.forEach(n => { n.vis = shownN(n); });
@@ -97,8 +97,8 @@
   });
   const colOf = n => S.mode === 'dept' ? n.cD : n.cM;
   const DIM = '#efe7dc';
-  const nodeColor = n => (S.hiN.size && !S.hiN.has(n.i)) ? DIM : colOf(n);
-  const nodeVal = n => S.hiN.size ? (n.i === S.sel ? n.v0 * 2.2 + 6 : S.hiN.has(n.i) ? n.v0 * 1.25 : n.v0 * .05) : n.v0;
+  const nodeColor = n => (S.hiN.size && !S.hiN.has(n.i) && n.i !== S.pv) ? DIM : colOf(n);
+  const nodeVal = n => n.i === S.pv ? n.v0 * 1.7 + 5 : S.hiN.size ? (n.i === S.sel ? n.v0 * 2.2 + 6 : S.hiN.has(n.i) ? n.v0 * 1.25 : n.v0 * .05) : n.v0;
   const tip = n => { const w = n.fd && stWord(n); return `<div class="tip"><b>${esc(n.c)}</b>${w ? ` <span class="z">· ${esc(w[0])} ${esc(w[1])}</span>` : ''}<br>${esc(n.te || '')}<div class="z">${esc(n.tz || '')}</div></div>`; };
   const shortZh = n => { const t = (n.tz || '').replace(/[《》]/g, ''); return t.length > 16 ? t.slice(0, 15) + '…' : t; };
 
@@ -348,7 +348,7 @@
     dom.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; stopRot(); tween = null; });
     dom.addEventListener('pointerup', e => {
       if (!down) return; const mv = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null; if (mv > 5 || e.button !== 0) return;
-      const n = pickAt(e.clientX, e.clientY); if (n) select(n.i); else if (S.sel != null || S.concept) clearSel();
+      const n = pickAt(e.clientX, e.clientY); if (n) nodeClick(n.i); else bgClick();
     });
     dom.addEventListener('wheel', () => { stopRot(); tween = null; }, { passive: true });
     let lastHover = 0;
@@ -409,7 +409,7 @@
       .nodeVal(nodeVal).nodeColor(nodeColor).nodeVisibility(n => n.vis).nodeLabel(null)
       .linkVisibility(l => l.vis).linkColor(linkCol).linkWidth(l => S.hiL.has(l) ? 1.3 : .45).linkLineDash(l => l.kind === 'bridge' ? [3, 2.4] : null)
       .enableNodeDrag(false)
-      .onNodeClick(n => select(n.i)).onBackgroundClick(() => { if (S.sel != null || S.concept) clearSel(); })
+      .onNodeClick(n => nodeClick(n.i)).onBackgroundClick(ev => { const n = ev && pick2(ev); if (n) nodeClick(n.i); else bgClick(); })
       .onRenderFramePre((ctx, k) => {
         if (!stepMorph() && G.autoPauseRedraw && !G.autoPauseRedraw()) G.autoPauseRedraw(true);
         clusters.forEach(c => {
@@ -420,6 +420,18 @@
         });
       })
       .warmupTicks(0).cooldownTicks(0);
+    // force-graph finds its hover target in the render loop, so a quick tap with no hover before it arrives as a
+    // background click. Hit-test those ourselves, with a finger-sized margin.
+    function pick2(ev) {
+      const rc = stage.getBoundingClientRect(), x = ev.clientX - rc.left, y = ev.clientY - rc.top, z = G.zoom(); let best = null, bs = Infinity;
+      for (const n of N) {
+        if (!n.vis || n.x == null) continue; const p = G.graph2ScreenCoords(n.x, n.y), dx = p.x - x, dy = p.y - y;
+        if (Math.abs(dx) > 40 || Math.abs(dy) > 40) continue;
+        const sr = Math.sqrt(Math.max(0, nodeVal(n))) * 2.1 * z, d = Math.hypot(dx, dy); if (d > sr + 10) continue;
+        const sc = d - sr - (S.hiN.has(n.i) ? 4 : 0); if (sc < bs) { bs = sc; best = n; }
+      }
+      return best;
+    }
     G.d3Force('charge', null); G.d3Force('link', null); G.d3Force('center', null);
     G.graphData({ nodes: N, links: L });
     updateClusters(); setTimeout(() => G.zoomToFit(0, 18, n => n.vis), 30);
@@ -467,10 +479,12 @@
     const lim = MOBILE ? 9 : 30;
     if (S.hiN.size) cands = [...S.hiN].map(i => N[i]).filter(n => n.vis).sort((a, b) => (b.i === S.sel) - (a.i === S.sel) || b.deg - a.deg).slice(0, MOBILE ? 10 : 26);
     else cands = N.filter(n => n.h && n.vis).sort((a, b) => a.h - b.h).slice(0, lim);
+    if (S.pv != null) cands = [N[S.pv], ...cands.filter(n => n.i !== S.pv)]; // the previewed dot is labelled first
     lbCache.forEach(o => { if (o.on) { o.el.style.display = 'none'; o.on = false; } });
-    cands.forEach(n => lbEl(n).el.classList.toggle('sel', n.i === S.sel));
+    cands.forEach(n => { const el = lbEl(n).el; el.classList.toggle('sel', n.i === S.sel); el.classList.toggle('pvl', n.i === S.pv); });
   }
   const pt = { x: 0, y: 0, d: 0 };
+  const ring = document.createElement('div'); ring.className = 'pvring'; LB.appendChild(ring); let ringOn = false;
   let frames = 0, fpsT = performance.now(); const fpsHist = [];
   const showFps = /[?&]fps/.test(location.search);
   function show(o, on) { if (o.on !== on) { o.el.style.display = on ? 'block' : 'none'; o.on = on; if (on && !o.w) { o.w = o.el.offsetWidth; o.h = o.el.offsetHeight; } } }
@@ -481,7 +495,9 @@
     if (!window.APP || !window.APP.ready) return;
     const W = stage.clientWidth, Hs = stage.clientHeight, placed = [];
     const hit = (x, y, w, h) => { for (const p of placed) if (x < p[0] + p[2] && x + w > p[0] && y < p[1] + p[3] && y + h > p[1]) return true; return false; };
-    const rightEdge = (!MOBILE && $('panel').classList.contains('open')) ? W - 440 : W;
+    if (S.pv != null && N[S.pv].x != null && R.toScreen(N[S.pv], pt)) { ring.style.transform = `translate(${(pt.x - 17) | 0}px,${(pt.y - 17) | 0}px)`; if (!ringOn) { ring.style.display = 'block'; ringOn = true; } }
+    else if (ringOn) { ring.style.display = 'none'; ringOn = false; }
+    const rightEdge = (!MOBILE && $('panel').classList.contains('open') && !S.col) ? W - 440 : W;
     const leftEdge = (!MOBILE && !$('side').classList.contains('min')) ? 290 : 0;
     // cluster labels first
     const seen = new Set();
@@ -522,11 +538,12 @@
     }
     NAV.cur = st; backUi();
   }
-  function backUi() { const b = $('pback'); if (b) b.hidden = !NAV.stack.length; }
+  function backUi() { const b = $('pback'); if (b) b.hidden = !NAV.stack.length; const b2 = $('pback2'); if (b2) b2.hidden = !NAV.stack.length || !S.col; }
   function goBack() {
     const st = NAV.stack.pop(); if (!st) return; NAV.restoring = true;
     try { if (st.t === 'n') select(st.v); else if (st.t === 'c') selectConcept(st.v); else if (st.t === 'k') selectKeyword(st.v); } finally { NAV.restoring = false; }
     NAV.cur = st; backUi();
+    if (st.pv != null && S.concept) preview(st.pv, false); // back in the search view: re-mark the document that was opened from it
   }
   function navReset() {
     NAV.stack = []; NAV.cur = null; backUi();
@@ -538,6 +555,7 @@
     if (NAV.stack.length) goBack();
   });
   $('pback').onclick = () => { if (!NAV.stack.length) return; if (NAV.pushed > 0) { try { history.back(); return; } catch (e) { } } goBack(); };
+  $('pback2').onclick = () => $('pback').onclick();
 
   // ---------------- selection ----------------
   function setHi(nodes, links) { S.hiN = nodes; S.hiL = links; R.refresh(); updateCands(); }
@@ -549,7 +567,7 @@
     if (!S.dept[n.g]) { S.dept[n.g] = true; changed = true; }
     if (S.dom !== 'all' && n.dm !== S.dom) { S.dom = 'all'; changed = true; }
     if (changed) { applyFilter(); R.refresh('vis'); buildSide(); updateClusters(); }
-    S.sel = i; S.concept = null;
+    S.sel = i; S.concept = null; S.pv = null; S.rowsM = null;
     const ns = new Set([i]), ls = new Set();
     n.adj.forEach(l => { if (!l.vis) return; ls.add(l); ns.add(l.s0 === i ? l.t0 : l.s0); });
     setHi(ns, ls);
@@ -557,7 +575,7 @@
     if (fly) setTimeout(() => R.flyTo(ns, i), changed ? 900 : 0);
   }
   function lightSet(rows) { // rows: [[node, mentions], ...]
-    S.sel = null;
+    S.sel = null; S.pv = null; S.rowsM = new Map(rows);
     rows.forEach(([i]) => { if (!N[i].vis && !S.dept[N[i].g]) S.dept[N[i].g] = true; });
     if (S.dom !== 'all') S.dom = 'all';
     applyFilter(); R.refresh('vis'); buildSide();
@@ -570,7 +588,7 @@
     navTo({ t: 'c', v: ci });
     const rows = cDocs(ci);
     lightSet(rows); S.concept = c;
-    Panel.concept(c, rows);
+    Panel.concept(c, rows); if (document.activeElement !== $('q')) $('q').value = c[1];
   }
   // free-text fallback: every node whose title or summary contains the words
   function kwRows(qs) {
@@ -587,14 +605,65 @@
     const rows = kwRows(qs); if (!rows.length) return;
     navTo({ t: 'k', v: qs.trim() });
     lightSet(rows); S.concept = { kw: qs.trim() };
-    Panel.keyword(qs.trim(), rows);
+    Panel.keyword(qs.trim(), rows); if (document.activeElement !== $('q')) $('q').value = qs.trim();
   }
-  function clearSel() { S.sel = null; S.concept = null; setHi(new Set(), new Set()); Panel.close(); navReset(); }
+  function clearSel() { S.sel = null; S.concept = null; S.pv = null; S.rowsM = null; setHi(new Set(), new Set()); Panel.close(); navReset(); }
+  // In a search result view (concept or keyword) a click on a dot or a result row only previews that document:
+  // the highlight and camera stay put, and only the Open button switches to the document's own link view.
+  const inSearch = () => !!S.concept && S.sel == null;
+  function nodeClick(i) { if (inSearch()) preview(i); else select(i); }
+  function bgClick() { if (S.pv != null) unpreview(); else if (S.sel != null || S.concept) clearSel(); }
+  function preview(i, reveal = true) {
+    const n = N[i]; if (!n || !inSearch()) return;
+    S.pv = i; R.refresh(); updateCands();
+    if (reveal) { if (MOBILE) Panel.setMini(false); else Panel.setCol(false); } // a click must put the Open button on screen
+    Panel.preview(n, S.rowsM ? S.rowsM.get(i) : undefined);
+  }
+  function unpreview() { if (S.pv == null) return; S.pv = null; R.refresh(); updateCands(); Panel.preview(null); }
+  function openPreview() { const i = S.pv; if (i == null) return; if (NAV.cur) NAV.cur.pv = i; select(i); }
 
   // ---------------- side panel ----------------
   const Panel = {
-    open() { $('panel').classList.add('open'); document.body.classList.add('panel-open'); R.panel(true); },
-    close() { $('panel').classList.remove('open', 'full', 'faded'); $('q').value = ''; document.body.classList.remove('panel-open'); R.panel(false); },
+    open() { $('panel').classList.add('open'); document.body.classList.add('panel-open'); R.panel(!S.col); sheetVar(); },
+    close() { this.preview(null); $('panel').classList.remove('open', 'full', 'faded', 'mini'); $('q').value = ''; document.body.classList.remove('panel-open'); this.setCol(false); R.panel(false); sheetVar(); },
+    // desktop and tablet: slide the panel out to a slim rail; the state holds while you move between documents
+    setCol(on) {
+      if (MOBILE) return; S.col = !!on;
+      $('panel').classList.toggle('col', S.col); document.body.classList.toggle('panel-col', S.col);
+      const t = $('ptab'); t.setAttribute('aria-expanded', !S.col); t.title = S.col ? '展開 Expand panel' : '收起 Collapse panel';
+      t.querySelector('.ar').textContent = S.col ? '‹' : '›'; t.querySelector('.rl').textContent = S.col ? '展開' : '收起';
+      R.panel($('panel').classList.contains('open') && !S.col); backUi();
+    },
+    // phones: minimise the bottom sheet to a bar with the title
+    setMini(on) {
+      if (!MOBILE) return; const p = $('panel'); p.classList.toggle('mini', !!on); if (on) p.classList.remove('full');
+      const b = $('pmin'); b.textContent = on ? '︿' : '–'; b.setAttribute('aria-label', on ? 'Expand 展開' : 'Minimise 收起'); b.setAttribute('aria-expanded', !on);
+      sheetVar();
+    },
+    preview(n, m) {
+      const box = $('ppv'); $('pbody').querySelectorAll('li.pvr').forEach(li => li.classList.remove('pvr'));
+      $('panel').classList.toggle('pving', !!n);
+      if (!n) { box.hidden = true; box.innerHTML = ''; sheetVar(); return; }
+      const g = GR[n.g] || { en: 'Other ordinances', zh: '其他條例' }, kw = !!(S.concept && S.concept.kw), w = n.fd && stWord(n);
+      const ment = m === undefined ? `<span>Not in these results 不在搜尋結果內</span>`
+        : m === null ? '' : m === 0 ? `<span>Tagged by AI, the exact words are not in the text 由 AI 標註，原文未有相同字眼</span>`
+        : kw ? `<span>Matches in title and summary 標題及摘要符合 <b>${fmt(m)}</b></span>` : `<span>Mentions 提及 <b>${fmt(m)}</b></span>`;
+      box.innerHTML = `<div class="pvk"><span class="sw" style="background:${colOf(n)}"></span><span>Preview <span class="zh">預覽</span> · ${esc(g.en)} <span class="zh">${esc(g.zh)}</span>${w ? ` · ${esc(w[0])} <span class="zh">${esc(w[1])}</span>` : ''}</span></div>` +
+        `<div class="pvc">${esc(n.c)}</div>${n.te && n.te !== n.c ? `<div class="pve">${esc(n.te)}</div>` : ''}${n.tz ? `<div class="pvz">${esc(n.tz)}</div>` : ''}` +
+        (ment ? `<div class="pvm">${ment}</div>` : '') +
+        `<div class="pvb"><button class="pvo" type="button"><span class="zh">打開</span> Open ›</button><button class="pvx" type="button">Keep searching <span class="zh">返回結果</span></button></div>`;
+      box.hidden = false;
+      box.querySelector('.pvo').onclick = openPreview; box.querySelector('.pvx').onclick = unpreview;
+      // mark its row in the result list, expanding a "Show all" group if the row is folded away
+      const body = $('pbody'); let li = body.querySelector(`li[data-i="${n.i}"]`);
+      if (!li) for (const [id, r] of Object.entries(this._rest || {})) { const more = body.querySelector(`button.more[data-more="${id}"]`); if (more && r.rows.some(x => x.o === n.i)) { more.click(); li = body.querySelector(`li[data-i="${n.i}"]`); break; } }
+      if (li) {
+        li.classList.add('pvr');
+        const a = li.getBoundingClientRect(), b = body.getBoundingClientRect();
+        if (a.top < b.top || a.bottom > b.bottom) body.scrollTop += a.top - b.top - Math.max(8, (b.height - a.height) / 3);
+      }
+      sheetVar();
+    },
     head(kindHtml, code, en, zh, meta) { $('pkind').innerHTML = kindHtml; $('pcode').textContent = code; $('pen').textContent = en || ''; $('pzh').textContent = zh || ''; $('pmeta').innerHTML = meta || ''; },
     node(n) {
       const g = GR[n.g], kd = KIND[n.k] || KIND.document;
@@ -602,7 +671,7 @@
       const meta = [n.dt && `Date 日期 <b>${esc(n.dt)}</b>`, n.st && `Status 狀態 <b>${esc(n.st)}</b>`, n.iff && `In force 生效 <b>${esc(n.iff)}</b>`, n.vd && `Version 版本 <b>${esc(n.vd)}</b>`,
         n.efd && `Effective 生效 <b>${esc(n.efd)}</b>`, `Citations 引用 <b>${n.out.length} out · ${n.inn.length} in</b>`].filter(Boolean).map(s => `<span>${s}</span>`).join('');
       const title = n.te && n.te !== n.c ? n.te : '';
-      this.head(kind, n.c, title, n.tz, meta);
+      this.preview(null); this.head(kind, n.c, title, n.tz, meta);
       $('panel').classList.toggle('faded', !!n.fd);
       let h = '';
       const lk = i => `<a data-i="${i}">${esc(N[i].c)}</a>`, sw = stWord(n);
@@ -700,7 +769,7 @@
       let h = full ? `<p class="note">Full text, English and Chinese, most mentions first.${tagged ? ' "Tagged": topic tagged by AI without the exact words.' : ''} <span class="zh">全文搜尋（中英文），按提及次數排列。${tagged ? '「tagged」：AI 標註的主題，原文未有相同字眼。' : ''}</span></p>`
         : `<p class="note">Documents tagged with this concept. <span class="zh">標註了此概念的文件。</span></p>`;
       h += this.listByDept(rows);
-      $('pbody').innerHTML = h; $('pbody').scrollTop = 0; this.disc();
+      this.preview(null); $('pbody').innerHTML = h; $('pbody').scrollTop = 0; this.disc();
       this.bind(); this.open();
     },
     keyword(qs, rows) {
@@ -708,21 +777,27 @@
       $('panel').classList.remove('faded');
       let h = `<p class="note">Not a concept, so matched in titles and summaries only. For full text try a concept, e.g. refuge floor, 露台. <span class="zh">此詞不是概念，只搜尋標題及摘要；全文搜尋請輸入概念，例如 refuge floor、露台。</span></p>`;
       h += this.listByDept(rows.map(([i, m]) => [i, undefined]));
-      $('pbody').innerHTML = h; $('pbody').scrollTop = 0; this.disc();
+      this.preview(null); $('pbody').innerHTML = h; $('pbody').scrollTop = 0; this.disc();
       this.bind(); this.open();
     },
     bind() {
       const body = $('pbody');
       body.querySelectorAll('li[data-i] > .m').forEach(m => m.onclick = ev => {
         if (ev.target.closest('.qb')) { const li = m.parentElement; li.classList.toggle('ex'); ev.target.setAttribute('aria-expanded', li.classList.contains('ex')); ev.target.textContent = li.classList.contains('ex') ? 'Quote 引文 ▴' : 'Quote 引文 ▾'; return; }
-        select(+m.parentElement.dataset.i);
+        const i = +m.parentElement.dataset.i; if (inSearch()) preview(i); else select(i);
       });
       body.querySelectorAll('.crumb a, .stat a, .info a').forEach(a => a.onclick = () => select(+a.dataset.i));
       body.querySelectorAll('button.more').forEach(b => b.onclick = () => { const r = this._rest[b.dataset.more]; $(b.dataset.more).insertAdjacentHTML('beforeend', this.rowsHtml(r.rows, r.kind)); b.remove(); this.bind(); });
     }
   };
   $('px').onclick = clearSel;
-  document.querySelector('#panel .grab').onclick = () => $('panel').classList.toggle('full');
+  document.querySelector('#panel .grab').onclick = () => { const p = $('panel'); if (p.classList.contains('mini')) Panel.setMini(false); else { p.classList.toggle('full'); sheetVar(); } };
+  $('ptab').onclick = () => Panel.setCol(!S.col);
+  $('pmin').onclick = e => { e.stopPropagation(); Panel.setMini(!$('panel').classList.contains('mini')); };
+  document.querySelector('#panel .hd').addEventListener('click', e => { if ($('panel').classList.contains('mini') && !e.target.closest('button')) Panel.setMini(false); });
+  // phones: publish the sheet height so the zoom buttons ride on top of it
+  function sheetVar() { const p = $('panel'); document.body.style.setProperty('--sheet', MOBILE && p.classList.contains('open') ? p.offsetHeight + 'px' : '0px'); }
+  if (MOBILE && window.ResizeObserver) new ResizeObserver(sheetVar).observe($('panel'));
 
   // ---------------- legend + filters ----------------
   const cnt = {}; N.forEach(n => { cnt[n.g] = (cnt[n.g] || 0) + 1; });
@@ -830,7 +905,7 @@
   });
   q.addEventListener('focus', () => { if (q.value.trim()) renderHits(search(q.value)); });
   q.addEventListener('blur', () => setTimeout(() => ul.classList.remove('open'), 150));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.activeElement !== q && (S.sel != null || S.concept)) clearSel(); if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.activeElement !== q && S.pv != null) { unpreview(); return; } if (e.key === 'Escape' && document.activeElement !== q && (S.sel != null || S.concept)) clearSel(); if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
 
   // ---------------- zoom buttons ----------------
   $('zin').onclick = () => R.zoom(MOBILE ? 1.4 : .72);
@@ -856,6 +931,8 @@
     search: t => search(t), keyword: t => selectKeyword(t), back: () => $('pback').click(), nav: () => ({ cur: NAV.cur, depth: NAV.stack.length }),
     conceptRows: t => { const r = search(t); return r.c[0] ? { name: r.c[0].c[1], zh: r.c[0].c[2], rows: cDocs(r.c[0].ci).map(([i, m]) => [N[i].c, N[i].g, m]) } : null; },
     setMode, setLeg, clear: clearSel,
+    preview: x => { const n = find(x); if (n) preview(n.i); return S.pv; }, openPreview, collapse: on => Panel.setCol(on), minimise: on => Panel.setMini(on),
+    pv: () => S.pv, hi: () => S.hiN.size,
     fps: () => fpsHist.slice(), counts: () => ({ nodes: N.filter(n => n.vis).length, links: L.filter(l => l.vis).length })
   };
 })();

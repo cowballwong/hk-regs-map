@@ -296,6 +296,71 @@ body.panel-open .zoombar{right:452px}
 #notice .row2{display:flex;justify-content:flex-end;margin-top:14px}
 #notice button{border:1px solid #c4763c;background:#c4763c;color:#fffdf9;padding:8px 22px;cursor:pointer;font-size:14px}
 #notice button:focus-visible{outline:2px solid #1a1410;outline-offset:2px}
+
+/* ---------- search preview (click a dot in a search view: preview first, Open to switch) ---------- */
+#panel .pvw{padding:12px 24px 12px;background:#fbf3ea;border-bottom:1px solid #e8cfb2;border-left:3px solid var(--terra)}
+#panel .pvw[hidden]{display:none}
+#panel .pvk{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+#panel .pvk .zh{letter-spacing:.06em}
+#panel .pvc{font-size:19px;line-height:1.25;margin:5px 0 2px;overflow-wrap:anywhere}
+#panel .pve{font-size:13.5px;font-style:italic;line-height:1.35;color:var(--ink2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#panel .pvz{font-family:var(--zh);font-size:13.5px;line-height:1.45;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#panel .pvm{margin-top:6px;font-size:12px;color:var(--muted)}
+#panel .pvm b{font-weight:normal;color:var(--ink)}
+#panel .pvb{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+#panel .pvo{border:1px solid var(--terra);background:var(--terra);color:#fffdf9;padding:7px 16px;cursor:pointer;font-size:14px;border-radius:2px}
+#panel .pvo:hover{background:#a95f2c;border-color:#a95f2c}
+#panel .pvo:focus-visible,#panel .pvx:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#panel .pvx{border:0;background:none;color:var(--muted);cursor:pointer;font-size:12px;padding:6px 4px;border-bottom:1px dotted var(--muted)}
+#panel li.pvr > .m{background:#fbe6cf;box-shadow:inset 3px 0 0 var(--terra)}
+.lb.pvl{background:var(--terra)}
+.lb.pvl b{color:#fffdf9}
+.lb.pvl span{color:#fbe6cf}
+.pvring{position:absolute;left:0;top:0;width:34px;height:34px;border:2.5px solid var(--terra);border-radius:50%;box-shadow:0 0 0 3px rgba(255,253,249,.85),0 0 14px rgba(196,118,60,.45);display:none;will-change:transform}
+
+/* ---------- collapsible panel: desktop and tablet rail ---------- */
+#prail{position:absolute;left:-35px;top:14px;display:flex;flex-direction:column;gap:6px}
+#panel:not(.open) #prail{display:none}
+#prail button{width:35px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 0;border:1px solid var(--rule);border-right:0;background:var(--paper);box-shadow:-5px 5px 14px rgba(26,20,16,.1);cursor:pointer;border-radius:3px 0 0 3px;color:var(--ink)}
+#prail button:hover{color:var(--terra)}
+#prail button:focus-visible{outline:2px solid var(--ink);outline-offset:-3px}
+#prail .ar{font-size:19px;line-height:1;color:var(--terra)}
+#prail .rl{writing-mode:vertical-rl;font:11.5px var(--zh);letter-spacing:.12em}
+#pback2[hidden]{display:none}
+#panel.col{transform:translateX(calc(100% + 15px))}
+#panel.col{box-shadow:none}
+body.panel-open.panel-col .zoombar{right:18px}
+#pmin{display:none;position:absolute;right:44px;top:10px;width:32px;height:32px;border:0;background:none;font-size:20px;line-height:1;cursor:pointer;color:var(--muted)}
+@media (max-width:768px){
+  #prail{display:none}
+  #panel .kind{padding-right:74px}
+  #pmin{display:block}
+  #panel.full{height:80%}
+  /* zoom buttons sit on top of the sheet, never behind it */
+  .zoombar{transition:bottom .3s}
+  body.panel-open .zoombar{flex-direction:row;bottom:calc(var(--sheet,0px) + 8px)}
+  body.panel-open .zoombar button+button{border-top:0;border-left:1px solid var(--rule)}
+  /* minimised sheet: a slim bar with the title, tap to expand */
+  #panel.mini{height:auto}
+  #panel.mini .kind,#panel.mini .en,#panel.mini .meta,#panel.mini .bd,#panel.mini .src,#panel.mini .pvw{display:none}
+  #panel.mini .hd{padding:4px 170px calc(10px + var(--sab)) 18px;cursor:pointer;border-bottom:0}
+  #panel.mini .back{position:absolute;right:80px;top:13px;margin:0}
+  #panel.mini .code{font-size:16px;margin:4px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #panel.mini .nzh{font-size:12.5px;margin-top:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #panel.mini .grab{margin-bottom:2px}
+  #panel .pvw{padding:9px 18px 10px}
+  #panel .pvc{font-size:16px;margin-top:3px}
+  #panel .pve{-webkit-line-clamp:1;font-size:12.5px}
+  #panel .pvz{-webkit-line-clamp:1;font-size:12.5px}
+  #panel .pvm{display:inline-block;margin-top:4px}
+  #panel .pvb{margin-top:7px}
+  #panel .pvo{padding:6px 14px}
+  #panel.pving .meta{display:none}
+  /* the legend rides on top of the sheet too, left of the zoom buttons */
+  #side{transition:bottom .3s}
+  body.panel-open #side{bottom:calc(var(--sheet,0px) + 8px);right:136px}
+  body.panel-open #side.min{right:auto;max-width:calc(100% - 152px)}
+}
 </style>
 </head>
 <body>
@@ -325,9 +390,11 @@ body.panel-open .zoombar{right:452px}
 </aside>
 
 <aside id="panel" aria-live="polite">
+  <div id="prail"><button id="ptab" type="button" aria-controls="panel" aria-expanded="true" title="收起 Collapse panel"><span class="ar" aria-hidden="true">›</span><span class="rl">收起</span></button><button id="pback2" type="button" hidden title="上一步 Back" aria-label="Back to the previous selection"><span class="ar" aria-hidden="true">‹</span><span class="rl">上一步</span></button></div>
   <div class="grab"></div>
   <div class="hd">
     <button class="x" id="px" aria-label="Close">×</button>
+    <button id="pmin" type="button" aria-label="Minimise 收起" aria-expanded="true">–</button>
     <button class="back" id="pback" type="button" hidden aria-label="Back to the previous selection">‹ <span class="zh">上一步</span> Back</button>
     <div class="kind" id="pkind"></div>
     <div class="code" id="pcode"></div>
@@ -335,6 +402,7 @@ body.panel-open .zoombar{right:452px}
     <div class="nzh" id="pzh"></div>
     <div class="meta" id="pmeta"></div>
   </div>
+  <div class="pvw" id="ppv" hidden></div>
   <div class="bd" id="pbody"></div>
   <div class="src" id="psrc"></div>
 </aside>
