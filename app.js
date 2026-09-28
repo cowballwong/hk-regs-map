@@ -105,28 +105,71 @@
   const tip = n => { const w = n.fd && stWord(n); return `<div class="tip"><b>${esc(n.c)}</b>${w ? ` <span class="z">· ${esc(w[0])} ${esc(w[1])}</span>` : ''}<br>${esc(n.te || '')}<div class="z">${esc(n.tz || '')}</div></div>`; };
   const shortZh = n => { const t = (n.tz || '').replace(/[《》]/g, ''); return t.length > 16 ? t.slice(0, 15) + '…' : t; };
 
+  // ---------------- primary subject (the "by subject" layout) ----------------
+  // A document's primary subject is the first of its subjects (sb). Legislation, other ordinances and cited stubs have none,
+  // so they take the primary subject most of their citing / cited documents share (at least 2 votes and a third of them);
+  // anything left sits in a neutral Legislation area in the middle.
+  const SLEG = 'LEGAREA';
+  (function subjects() {
+    N.forEach(n => { n.sj = n.k === 'document' && n.sb && n.sb.length && SUBJ[n.sb[0]] ? n.sb[0] : null; });
+    const votes = N.map(() => ({}));
+    E.forEach(e => { const a = N[e.s], b = N[e.t]; if (a.sj && !b.sj && b.k !== 'document') votes[b.i][a.sj] = (votes[b.i][a.sj] || 0) + 1; if (b.sj && !a.sj && a.k !== 'document') votes[a.i][b.sj] = (votes[a.i][b.sj] || 0) + 1; });
+    N.forEach(n => {
+      if (n.sj) return;
+      const v = Object.entries(votes[n.i]).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)), tot = v.reduce((s, x) => s + x[1], 0);
+      if (n.k !== 'ordinance' && v.length && v[0][1] >= 2 && v[0][1] / tot >= 1 / 3) { n.sj = v[0][0]; n.sji = 1; } else n.sj = SLEG;
+    });
+  })();
+
   // ---------------- clusters (topic regions) ----------------
   const CENTRES = {
     dept: { LEG: [0, 0, 0], BD: [300, 10, -40], FSD: [80, -40, 310], PlanD: [-270, 50, 190], LandsD: [-280, -30, -160], EXT: [20, 80, -320] },
-    domain: {}
+    domain: {}, subject: {}, subject2: {}
   };
-  ['D1', 'D7', 'D8', 'D6', 'D4', 'D3', 'D5', 'D2'].forEach((d, k) => { const a = k * Math.PI / 4; CENTRES.domain[d] = [Math.cos(a) * 340, (k % 2 ? 45 : -45), Math.sin(a) * 340]; });
-  const ckey = n => S.mode === 'dept' ? n.g : n.dm;
-  const cinfo = k => S.mode === 'dept' ? { en: GR[k].en, zh: GR[k].zh, color: k === 'LEG' ? '#6d5e50' : k === 'EXT' ? '#9a8d7e' : GR[k].color } : { en: (DSHORT[k] || [DOM[k].en])[0], zh: (DSHORT[k] || [0, DOM[k].zh])[1], color: DOM[k].color };
+  const DRING = ['D1', 'D7', 'D8', 'D6', 'D4', 'D3', 'D5', 'D2'];
+  DRING.forEach((d, k) => { const a = k * Math.PI / 4; CENTRES.domain[d] = [Math.cos(a) * 340, (k % 2 ? 45 : -45), Math.sin(a) * 340]; });
+  // by subject: each domain is a super-region on a wide ring; its subjects sit around the domain centre, on a small
+  // Fibonacci sphere in 3D (so they spread out from any viewing angle) and a sunflower disc in 2D; Legislation in the middle
+  (function subjectCentres() {
+    const GA = Math.PI * (3 - Math.sqrt(5)), size = {};
+    N.forEach(n => { size[n.sj] = (size[n.sj] || 0) + 1; });
+    DRING.forEach((d, k) => {
+      const a = k * Math.PI / 4, ks = Object.keys(SUBJ).filter(s => SUBJ[s][2] === d).sort((p, q) => (size[q] || 0) - (size[p] || 0) || (p < q ? -1 : 1)), m = ks.length;
+      const c3 = [Math.cos(a) * 640, (k % 2 ? 60 : -60), Math.sin(a) * 640], c2 = [Math.cos(a) * 600, 0, Math.sin(a) * 600];
+      const r3 = 70 + 15 * m, r2 = 62 + 13 * m;
+      ks.forEach((s, j) => {
+        const yy = m === 1 ? 0 : 1 - 2 * (j + .5) / m, rr = Math.sqrt(1 - yy * yy), th = GA * j;
+        CENTRES.subject[s] = [c3[0] + Math.cos(th) * rr * r3, c3[1] + yy * r3 * .8, c3[2] + Math.sin(th) * rr * r3];
+        const rd = r2 * Math.sqrt((j + .6) / m), t2 = GA * j + a;
+        CENTRES.subject2[s] = [c2[0] + Math.cos(t2) * rd, 0, c2[2] + Math.sin(t2) * rd];
+      });
+    });
+    CENTRES.subject[SLEG] = [0, 0, 0]; CENTRES.subject2[SLEG] = [0, 0, 0];
+  })();
+  const centres = (mode, dim) => mode === 'subject' && dim === 2 ? CENTRES.subject2 : CENTRES[mode];
+  const keyOf = (n, mode) => mode === 'dept' ? n.g : mode === 'subject' ? n.sj : n.dm;
+  const ckey = n => keyOf(n, S.mode);
+  const cinfo = k => {
+    if (S.mode === 'dept') return { en: GR[k].en, zh: GR[k].zh, color: k === 'LEG' ? '#6d5e50' : k === 'EXT' ? '#9a8d7e' : GR[k].color };
+    if (S.mode === 'subject') return k === SLEG ? { en: 'Legislation', zh: '法例', color: '#6d5e50', leg: 1 } : { en: SUBJ[k][0], zh: SUBJ[k][1], color: (DOM[SUBJ[k][2]] || {}).color || '#8b7355', sub: 1 };
+    return { en: (DSHORT[k] || [DOM[k].en])[0], zh: (DSHORT[k] || [0, DOM[k].zh])[1], color: DOM[k].color };
+  };
   let clusters = [], GC = { x: 0, y: 0, z: 0 };
   function updateClusters() {
     const acc = {};
     N.forEach(n => { if (!n.vis || n.x == null) return; const k = ckey(n); (acc[k] = acc[k] || []).push(n); });
     let gx = 0, gy = 0, gz = 0, gn = 0; N.forEach(n => { if (n.vis && n.x != null) { gx += n.x; gy += n.y; gz += n.z || 0; gn++; } });
     GC = gn ? { x: gx / gn, y: gy / gn, z: gz / gn } : { x: 0, y: 0, z: 0 };
-    clusters = Object.entries(acc).filter(([, ns]) => ns.length >= 3).map(([k, ns]) => {
+    clusters = Object.entries(acc).filter(([, ns]) => ns.length >= (S.mode === 'subject' ? 1 : 3)).map(([k, ns]) => {
       let x = 0, y = 0, z = 0; ns.forEach(n => { x += n.x; y += n.y; z += n.z || 0; }); x /= ns.length; y /= ns.length; z /= ns.length;
       const ds = ns.map(n => Math.hypot(n.x - x, n.y - y, (n.z || 0) - z)).sort((a, b) => a - b);
       return { k, x, y, z, r: ds[Math.floor(ds.length * .8)] || 30, n: ns.length, info: cinfo(k) };
     });
+    // labels are placed in this order and a label that would overlap one already placed is skipped: biggest subjects first
+    if (S.mode === 'subject') clusters.sort((a, b) => (b.k === SLEG) - (a.k === SLEG) || b.n - a.n);
   }
   function clusterForce(alpha) {
-    const C = CENTRES[S.mode];
+    const C = centres(S.mode, SIMDIM);
     for (const n of N) {
       const c = C[ckey(n)]; if (!c) continue;
       const k = (LEGK.has(n.k) ? .1 : .19) * alpha;
@@ -139,7 +182,7 @@
   function seedPositions(mode, dim) {
     let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - .5;
     N.forEach(n => { n.x = n.y = n.z = undefined; n.vx = n.vy = n.vz = 0; });
-    N.forEach(n => { if (n.pa != null) return; const c = CENTRES[mode][mode === 'dept' ? n.g : n.dm] || [0, 0, 0]; n.x = c[0] + rnd() * 90; if (dim === 2) n.y = c[2] + rnd() * 90; else { n.y = c[1] + rnd() * 90; n.z = c[2] + rnd() * 90; } });
+    N.forEach(n => { if (n.pa != null) return; const c = centres(mode, dim)[keyOf(n, mode)] || [0, 0, 0]; n.x = c[0] + rnd() * 90; if (dim === 2) n.y = c[2] + rnd() * 90; else { n.y = c[1] + rnd() * 90; n.z = c[2] + rnd() * 90; } });
     const place = n => { if (n.x != null) return; const p = N[n.pa]; place(p); n.x = p.x + rnd() * 20; n.y = p.y + rnd() * 20; if (dim === 3) n.z = p.z + rnd() * 20; };
     N.forEach(place);
   }
@@ -180,7 +223,7 @@
   async function bake() {
     const D3 = await import('https://cdn.jsdelivr.net/npm/d3-force-3d@3.0.6/+esm');
     const out = { built: H.built, d3: {}, d2: {} }, t0 = performance.now();
-    for (const dim of [3, 2]) for (const mode of ['dept', 'domain']) {
+    for (const dim of [3, 2]) for (const mode of ['dept', 'domain', 'subject']) {
       SIMDIM = dim; S.mode = mode; seedPositions(mode, dim);
       const sim = D3.forceSimulation(N, dim).alphaDecay(.0115).velocityDecay(.4)
         .force('link', D3.forceLink(L).id(n => n.i).distance(linkDist).strength(linkStr))
@@ -324,7 +367,7 @@
     function applyOffset() { const s = panelShift + legendShift(); if (s) cam.setViewOffset(W(), Hh(), s, 0, W(), Hh()); else cam.clearViewOffset(); cam.updateProjectionMatrix(); }
     $('sideh').addEventListener('click', () => setTimeout(applyOffset, 0));
     const stopRot = () => { rotIdle = performance.now(); };
-    function frameSet(ns, focus, ms, tight) {
+    function frameSet(ns, focus, ms, tight, elev) {
       if (!ns.length) return;
       const c = { x: 0, y: 0, z: 0 };
       if (tight) { ns.forEach(m => { c.x += m.x; c.y += m.y; c.z += m.z; }); ['x', 'y', 'z'].forEach(a => c[a] /= ns.length); }
@@ -334,8 +377,9 @@
       const ds = ns.map(m => Math.hypot(m.x - c.x, m.y - c.y, m.z - c.z)).sort((a, b) => a - b);
       const r = Math.max(tight ? 30 : 60, ds[Math.min(ds.length - 1, Math.floor(ds.length * (tight ? (small ? 1 : .9) : .985)))] || 0);
       const fov = cam.fov * Math.PI / 180, aspect = W() / Hh();
-      const dist = r / Math.sin(Math.min(fov, 2 * Math.atan(Math.tan(fov / 2) * aspect)) / 2) * (tight ? 1.05 : .7) + 20;
+      const dist = r / Math.sin(Math.min(fov, 2 * Math.atan(Math.tan(fov / 2) * aspect)) / 2) * (tight ? 1.05 : elev != null && elev > .6 ? .8 : .7) + 20;
       const d = V.copy(cam.position).sub(controls.target); if (d.length() < 1) d.set(0, .3, 1); d.normalize();
+      if (elev != null) { const az = Math.atan2(d.x, d.z); d.set(Math.sin(az) * Math.cos(elev), Math.sin(elev), Math.cos(az) * Math.cos(elev)); } // by subject looks down more steeply, so the wide ring of domains opens up
       flyCam({ x: c.x + d.x * dist, y: c.y + d.y * dist, z: c.z + d.z * dist }, c, ms);
     }
 
@@ -399,7 +443,7 @@
       },
       panel(open) { panelShift = open ? 214 : 0; applyOffset(); },
       flyTo(ids, focus) { stopRot(); frameSet([...ids].map(i => N[i]).filter(n => n.vis), focus != null ? N[focus] : null, 1500, true); },
-      fitAll(ms = 800) { frameSet(N.filter(n => n.vis), null, ms, false); },
+      fitAll(ms = 800, elev) { frameSet(N.filter(n => n.vis), null, ms, false, elev); },
       zoom(f) { stopRot(); const t = controls.target, p = cam.position; flyCam({ x: t.x + (p.x - t.x) * f, y: t.y + (p.y - t.y) * f, z: t.z + (p.z - t.z) * f }, t.clone(), 350); },
       resize() { renderer.setSize(W(), Hh()); cam.aspect = W() / Hh(); applyOffset(); hiMat.resolution.set(W(), Hh()); hiBrMat.resolution.set(W(), Hh()); xMat.resolution.set(W(), Hh()); },
       info: () => renderer.info.render
@@ -483,7 +527,7 @@
   }
   function clEl(c) {
     let o = clCache.get(S.mode + c.k);
-    if (!o) { const el = document.createElement('div'); el.className = 'cl'; el.innerHTML = `<b>${esc(c.info.en)}</b><span>${esc(c.info.zh)}</span>`; el.style.display = 'none'; LB.appendChild(el); o = { el, w: 0, h: 0, on: false }; clCache.set(S.mode + c.k, o); }
+    if (!o) { const el = document.createElement('div'); el.className = c.info.sub ? 'cl sj' : 'cl'; if (c.info.sub) el.style.color = mix(c.info.color, '#1a1410', .38); el.innerHTML = `<b>${esc(c.info.en)}</b><span>${esc(c.info.zh)}</span>`; el.style.display = 'none'; LB.appendChild(el); o = { el, w: 0, h: 0, on: false }; clCache.set(S.mode + c.k, o); }
     return o;
   }
   let cands = [];
@@ -520,6 +564,11 @@
       const o = clEl(c); seen.add(o);
       if (!R.clusterScreen(c, pt)) { show(o, false); return; }
       show(o, true);
+      if (c.info.sub) { // by subject: the label sits on its own sub-cluster, centred just above the middle
+        const x = pt.x - o.w / 2, y = pt.y - o.h * .75, top = MOBILE ? 118 : 6;
+        if (x < leftEdge + 4 || x + o.w > rightEdge - 4 || y < top || y + o.h > Hs - 4 || hit(x, y, o.w, o.h)) { show(o, false); return; }
+        placed.push([x - 3, y - 2, o.w + 6, o.h + 4]); o.el.style.transform = `translate(${x | 0}px,${y | 0}px)`; o.el.style.opacity = S.hiN.size ? .4 : 1; return;
+      }
       let ux = pt.x - pt.gx, uy = pt.y - pt.gy; const ul = Math.hypot(ux, uy); if (ul < 1) { ux = 0; uy = -1; } else { ux /= ul; uy /= ul; }
       const ax = pt.x + ux * (pt.r * .9 + 10), ay = pt.y + uy * (pt.r * .9 + 10);
       let x = ax - o.w / 2 + ux * o.w * .35, y = uy < 0 ? ay - o.h : ay;
@@ -916,7 +965,7 @@
   function buildSide() {
     const deptRows = Object.entries(GR).map(([k, g]) => `<div class="row"><label><input type="checkbox" data-dept="${k}" ${S.dept[k] ? 'checked' : ''}><span class="sw ${S.mode === 'dept' ? '' : 'sq'}" style="background:${S.mode === 'dept' ? (k === 'LEG' ? '#5a4c40' : k === 'EXT' ? '#9a8d7e' : g.color) : '#cbbfae'}"></span><span class="t one">${esc(SHORT[k] || g.en)} <span class="zh">${esc(SHORTZ[k] || g.zh)}</span></span></label><span class="ct">${fmt(cnt[k] || 0)}</span></div>`).join('');
     const domOpts = `<option value="all">All domains 全部範疇</option>` + Object.entries(DOM).map(([k, d]) => `<option value="${k}" ${S.dom === k ? 'selected' : ''}>${esc(d.en)} ${esc(d.zh)}</option>`).join('');
-    const domRows = S.mode === 'domain' ? `<h4>Colour = domain<span class="zh">顏色 = 範疇</span></h4>` + Object.entries(DOM).map(([k, d]) => `<div class="row dom ${S.dom === k ? 'on' : ''}" data-dom="${k}" title="Show only this domain"><span class="sw" style="background:${d.color}"></span><span class="t">${esc(DSHORT[k][0])} <span class="zh">${esc(DSHORT[k][1])}</span></span><span class="ct">${dcnt[k] || 0}</span></div>`).join('') : '';
+    const domRows = S.mode !== 'dept' ? `<h4>Colour = domain<span class="zh">顏色 = 範疇</span></h4>` + (S.mode === 'subject' ? `<p class="snote">Regions = subjects, grouped by domain. Unclassified legislation sits in the middle.<span class="zh">區域 = 題材，按範疇歸組；未分類法例在中間。</span></p>` : '') + Object.entries(DOM).map(([k, d]) => `<div class="row dom ${S.dom === k ? 'on' : ''}" data-dom="${k}" title="Show only this domain"><span class="sw" style="background:${d.color}"></span><span class="t">${esc(DSHORT[k][0])} <span class="zh">${esc(DSHORT[k][1])}</span></span><span class="ct">${dcnt[k] || 0}</span></div>`).join('') : '';
     $('sideb').innerHTML =
       domRows +
       `<h4>${S.mode === 'dept' ? 'Colour = department' : 'Departments'}<span class="zh">${S.mode === 'dept' ? '顏色 = 部門' : '部門'}</span></h4>${deptRows}` +
@@ -950,7 +999,7 @@
     clCache.forEach(o => { o.el.remove(); }); clCache.clear();
     buildSide(); R.refresh(); morphTo(m, 2200); R.moved(); updateClusters();
     if (S.sel != null) Panel.node(N[S.sel]);
-    onMorphEnd = () => { onMorphEnd = null; if (S.hiN.size) R.flyTo(S.hiN, S.sel); else R.fitAll(1200); };
+    onMorphEnd = () => { onMorphEnd = null; if (S.hiN.size) R.flyTo(S.hiN, S.sel); else R.fitAll(1200, m === 'subject' ? .92 : Math.atan2(330, 1150)); };
   }
   document.querySelectorAll('#mode button').forEach(b => b.onclick = () => setMode(b.dataset.m));
 
@@ -979,24 +1028,51 @@
     return { c: ch.slice(0, 5).map(x => x[1]), n: nh.slice(0, 10).map(x => x[1]), cFirst: !!ch.length && (!nh.length || ch[0][0] >= nh[0][0]), kw, raw };
   }
   const q = $('q'), ul = $('qres'); let hits = [], act = 0;
+  // ---- search history (this browser only; the page works without storage) + popular starters ----
+  const RK = 'hkmap_recent';
+  let recent = (() => { try { const v = JSON.parse(localStorage.getItem(RK) || '[]'); return Array.isArray(v) ? v.filter(x => typeof x === 'string' && x.trim()).slice(0, 8) : []; } catch (e) { return []; } })();
+  const saveRecent = () => { try { localStorage.setItem(RK, JSON.stringify(recent)); } catch (e) { } };
+  function addRecent(t) { t = String(t || '').trim(); if (!t) return; recent = [t, ...recent.filter(x => x.toLowerCase() !== t.toLowerCase())].slice(0, 8); saveRecent(); }
+  function delRecent(t) { recent = recent.filter(x => x !== t); saveRecent(); }
+  // starter terms; each is kept only if it finds something (they were all checked against search.js when chosen)
+  const POPULAR = [['balcony', '露台'], ['refuge floor', '庇護層'], ['fire rated door', '防火門'], ['GFA concession', '總樓面面積寬免'], ['means of escape', '逃生途徑'], ['barrier free access', '暢通無阻'], ['minor works', '小型工程'], ['curtain wall', '幕牆']]
+    .filter(([t]) => { const r = search(t); return r.c.length || r.n.length; });
+  const hl = (t, raw) => { const s = String(t), i = raw ? s.toLowerCase().indexOf(raw.toLowerCase()) : -1; return i < 0 ? esc(s) : esc(s.slice(0, i)) + '<mark>' + esc(s.slice(i, i + raw.length)) + '</mark>' + esc(s.slice(i + raw.length)); };
+  const recentRow = (t, k, raw) => `<li data-k="${k}" class="rc"><svg class="ic" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="5.5"/><path d="M7 4v3.2l2 1.3"/></svg><span class="c">${hl(t, raw)}</span><button type="button" class="qx" data-x="${esc(t)}" aria-label="Remove ${esc(t)} 移除" title="Remove 移除">×</button></li>`;
+  function wireRows() {
+    ul.querySelectorAll('li[data-k]').forEach(li => li.onmousedown = e => { e.preventDefault(); pick(+li.dataset.k); });
+    ul.querySelectorAll('.qx').forEach(b => b.onmousedown = e => { e.preventDefault(); e.stopPropagation(); delRecent(b.dataset.x); q.value.trim() && typed ? renderHits(search(q.value)) : renderSuggest(); });
+    const c = ul.querySelector('.qclr'); if (c) c.onmousedown = e => { e.preventDefault(); e.stopPropagation(); recent = []; saveRecent(); renderSuggest(); };
+  }
+  function renderSuggest() { // the box is focused and nothing has been typed yet: recent searches, then popular terms
+    hits = []; act = -1; let h = '', k = 0;
+    if (recent.length) h += `<li class="hd hdr"><span>Recent searches 最近搜尋</span><button type="button" class="qclr">Clear 清除</button></li>` + recent.map(t => { hits.push({ t: 's', q: t }); return recentRow(t, k++, ''); }).join('');
+    if (POPULAR.length) h += `<li class="hd">Popular 常用</li>` + POPULAR.map(([t, z]) => { hits.push({ t: 's', q: t }); return `<li data-k="${k++}" class="pop"><svg class="ic" width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 10l3.5-3.5 2.5 2.5L12 5"/><path d="M9 5h3v3"/></svg><span class="c">${esc(t)}</span><span class="n zh">${esc(z)}</span></li>`; }).join('');
+    ul.innerHTML = h; ul.classList.toggle('open', !!h); mark(); wireRows();
+  }
   function renderHits(res) {
+    const raw0 = q.value.trim(), rs = raw0 ? recent.filter(t => t.toLowerCase().includes(raw0.toLowerCase()) && t.toLowerCase() !== raw0.toLowerCase()).slice(0, 3) : [];
     const cH = res.c.map(o => ({ t: 'c', o })), nH = res.n.map(n => ({ t: 'n', n })), kH = res.kw ? [{ t: 'k', q: res.raw }] : [];
-    hits = res.cFirst ? [...cH, ...nH, ...kH] : [...nH, ...cH, ...kH]; act = 0;
+    hits = [...rs.map(t => ({ t: 's', q: t })), ...(res.cFirst ? [...cH, ...nH, ...kH] : [...nH, ...cH, ...kH])]; act = rs.length < hits.length ? rs.length : 0;
     let h = '', k = 0;
-    const cHtml = () => res.c.length ? `<li class="hd">Concepts 概念</li>` + res.c.map(o => `<li data-k="${k++}"><span class="sw" style="background:var(--terra)"></span><span class="c">${esc(o.c[1])}</span><span class="n zh">${esc(o.c[2])}</span><span class="tag">${cCount(o.ci)} doc${cCount(o.ci) === 1 ? '' : 's'}</span></li>`).join('') : '';
+    if (rs.length) h += `<li class="hd">Recent 最近搜尋</li>` + rs.map(t => recentRow(t, k++, raw0)).join('');
+    const cHtml = () => res.c.length ? `<li class="hd">Concepts 概念</li>` + res.c.map(o => `<li data-k="${k++}"><span class="sw" style="background:var(--terra)"></span><span class="c">${hl(o.c[1], res.raw)}</span><span class="n zh">${esc(o.c[2])}</span><span class="tag">${cCount(o.ci)} doc${cCount(o.ci) === 1 ? '' : 's'}</span></li>`).join('') : '';
     const nHtml = () => res.n.length ? `<li class="hd">Documents &amp; provisions 文件及條文</li>` + res.n.map(n => { const w = n.fd && stWord(n); return `<li data-k="${k++}"${w ? ' class="old"' : ''}><span class="sw" style="background:${colOf(n)}"></span><span class="c">${esc(n.c)}</span><span class="n">${esc(n.te && n.te !== n.c ? n.te : '')} <span class="zh">${esc(n.tz || '')}</span></span>${w ? `<span class="tag o">${esc(w[0])}</span>` : ''}</li>`; }).join('') : '';
-    h = res.cFirst ? cHtml() + nHtml() : nHtml() + cHtml();
+    h += res.cFirst ? cHtml() + nHtml() : nHtml() + cHtml();
     if (res.kw) h += `<li class="hd">Keyword 關鍵字</li><li data-k="${k++}"><span class="sw" style="background:var(--muted)"></span><span class="c">“${esc(res.raw)}”</span><span class="n">in titles and summaries <span class="zh">標題及摘要</span></span><span class="tag">${res.kw}</span></li>`;
     if (!hits.length && q.value.trim()) h = `<li class="hd" style="text-transform:none;letter-spacing:0">No match. Try a code (APP-151), a title word or a concept (refuge floor). 找不到結果</li>`;
-    ul.innerHTML = h; ul.classList.toggle('open', !!h); mark();
-    ul.querySelectorAll('li[data-k]').forEach(li => li.onmousedown = e => { e.preventDefault(); pick(+li.dataset.k); });
+    ul.innerHTML = h; ul.classList.toggle('open', !!h); mark(); wireRows();
   }
-  const mark = () => ul.querySelectorAll('li[data-k]').forEach(li => li.classList.toggle('act', +li.dataset.k === act));
+  const mark = () => ul.querySelectorAll('li[data-k]').forEach(li => { const on = +li.dataset.k === act; li.classList.toggle('act', on); if (on) li.scrollIntoView({ block: 'nearest' }); });
   function pick(k) {
-    const h = hits[k]; if (!h) return; ul.classList.remove('open'); q.blur();
+    const h = hits[k]; if (!h) return;
+    if (h.t === 's') { q.value = h.q; typed = true; renderHits(search(h.q)); const j = hits.findIndex(x => x.t !== 's'); if (j >= 0) pick(j); else { addRecent(h.q); ul.classList.remove('open'); } return; }
+    ul.classList.remove('open'); q.blur(); typed = false;
     if (h.t === 'c') { q.value = h.o.c[1]; selectConcept(h.o.ci); } else if (h.t === 'k') { selectKeyword(h.q); q.value = h.q; } else { q.value = h.n.c; select(h.n.i); }
+    addRecent(q.value); // a search is remembered only once it is chosen or submitted
   }
-  q.addEventListener('input', () => renderHits(search(q.value)));
+  let typed = false; // true once the visitor types; until then a focused box offers history and popular terms
+  q.addEventListener('input', () => { typed = true; if (q.value.trim()) renderHits(search(q.value)); else renderSuggest(); });
   q.addEventListener('keydown', e => {
     if (e.key === 'Escape') { ul.classList.remove('open'); return; }
     if (!hits.length) return;
@@ -1004,7 +1080,11 @@
     else if (e.key === 'ArrowUp') { act = Math.max(act - 1, 0); mark(); e.preventDefault(); }
     else if (e.key === 'Enter') { pick(act); e.preventDefault(); }
   });
-  q.addEventListener('focus', () => { if (q.value.trim()) renderHits(search(q.value)); });
+  let keepSel = false; // a click's mouseup would undo the select-all made on focus
+  const openSuggest = () => { typed = false; renderSuggest(); if (q.value) { try { q.select(); } catch (e) { } keepSel = true; } };
+  q.addEventListener('mouseup', e => { if (keepSel) { e.preventDefault(); keepSel = false; } });
+  q.addEventListener('focus', openSuggest);
+  q.addEventListener('click', () => { if (!ul.classList.contains('open')) { if (typed && q.value.trim()) renderHits(search(q.value)); else openSuggest(); } });
   q.addEventListener('blur', () => setTimeout(() => ul.classList.remove('open'), 150));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.activeElement !== q && S.pv != null) { unpreview(); return; } if (e.key === 'Escape' && document.activeElement !== q && (S.sel != null || S.concept)) clearSel(); if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
 

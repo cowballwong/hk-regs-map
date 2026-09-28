@@ -18,7 +18,7 @@ The map draws Hong Kong's building control documents as one connected network th
 - Town Planning Board Planning Guidelines;
 - Fire Services Department circular letters, codes of practice and guidance.
 
-The September 2026 build has 2,276 nodes (907 documents and 1,174 legislative provisions), 4,806 citation links and 99 suggested cross-department links. Click a node to light up its links and read a short English and Chinese summary with a link to the official source. Search by code, title or topic, and switch the colouring between department and subject domain.
+The September 2026 build has 2,276 nodes (907 documents and 1,174 legislative provisions), 4,806 citation links and 99 suggested cross-department links. Click a node to light up its links and read a short English and Chinese summary with a link to the official source. Search by code, title or topic (with recent searches and popular starters), and switch the layout between department, subject domain and individual subject.
 
 ## How it was made
 

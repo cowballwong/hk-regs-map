@@ -36,18 +36,30 @@ button,select,input{font:inherit;color:inherit}
 .seg button.on{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px rgba(26,20,16,.12)}
 .seg button.on .zh{color:var(--terra)}
 .spacer{flex:1}
-.search{position:relative}
-.search input{width:300px;height:36px;border:1px solid var(--rule);background:var(--cream);border-radius:2px;padding:0 12px 0 32px;font:14px var(--serif);outline:none;-webkit-appearance:none}
-.search input:focus{border-color:var(--terra);background:var(--paper)}
-.search svg{position:absolute;left:10px;top:11px}
-.search ul{position:absolute;right:0;top:40px;width:420px;max-height:460px;overflow:auto;margin:0;padding:4px 0;list-style:none;background:var(--paper);border:1px solid var(--rule);box-shadow:0 12px 34px rgba(26,20,16,.14);display:none;z-index:40}
+.search{position:relative;flex:1 1 420px;max-width:600px;min-width:0;margin:0 auto}
+.search input{width:100%;height:44px;border:1.5px solid var(--terra);background:var(--paper);border-radius:4px;padding:0 44px 0 42px;font:15px var(--serif);outline:none;-webkit-appearance:none;box-shadow:0 1px 3px rgba(26,20,16,.07);transition:box-shadow .15s}
+.search input::placeholder{color:#9c8672;opacity:1}
+.search input:focus{background:#fff;box-shadow:0 0 0 3px rgba(196,118,60,.2),0 2px 8px rgba(26,20,16,.08)}
+.search input::-webkit-search-cancel-button{cursor:pointer}
+.search .si{position:absolute;left:14px;top:13px;pointer-events:none}
+.search .qk{position:absolute;right:11px;top:11px;min-width:22px;height:22px;line-height:20px;text-align:center;font:12px var(--serif);color:var(--muted);border:1px solid var(--rule);border-bottom-width:2px;border-radius:3px;background:var(--cream);pointer-events:none}
+.search input:focus~.qk,.search input:not(:placeholder-shown)~.qk{display:none}
+.search ul{position:absolute;left:0;right:0;top:50px;min-width:100%;max-height:min(480px,calc(100vh - 140px));overflow:auto;margin:0;padding:4px 0;list-style:none;background:var(--paper);border:1px solid var(--rule);border-radius:4px;box-shadow:0 12px 34px rgba(26,20,16,.16);display:none;z-index:40}
 .search ul.open{display:block}
-.search li{padding:7px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline;font-size:13px}
+.search li{padding:8px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline;font-size:13.5px}
 .search li:hover,.search li.act{background:var(--soft)}
 .search li .sw{width:8px;height:8px;border-radius:50%;flex:none;align-self:center}
 .search li .c{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:62%}
 .search li .n{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
 .search li .tag{flex:none;margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--terra);border:1px solid var(--terra);padding:0 5px;white-space:nowrap}
+.search li mark{background:none;color:var(--terra)}
+.search li .ic{flex:none;align-self:center;color:var(--muted)}
+.search li.rc .c,.search li.pop .c{font-weight:normal;max-width:none;flex:0 1 auto}
+.search li.pop .n{flex:1}
+.search li .qx{flex:none;margin-left:auto;align-self:center;border:0;background:none;width:28px;height:28px;margin:-6px -6px -6px auto;font-size:18px;line-height:1;color:var(--muted);cursor:pointer;border-radius:50%}
+.search li .qx:hover{background:var(--rule);color:var(--ink)}
+.search li.hdr{display:flex;justify-content:space-between;align-items:center}
+.search .qclr{border:0;background:none;padding:2px 4px;font:11px var(--serif);letter-spacing:.04em;text-transform:none;color:var(--terra);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .search li.hd{cursor:default;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);padding:8px 12px 3px;background:none}
 .wm{font-size:15px;letter-spacing:.32em;white-space:nowrap;display:flex;align-items:center}
 .wm i{font-style:normal;display:inline-block;width:1.5px;height:18px;background:var(--terra);margin:0 .5em 0 .22em}
@@ -65,6 +77,12 @@ button,select,input{font:inherit;color:inherit}
   text-shadow:0 0 2px #f5ede4,0 0 4px #f5ede4,0 0 7px #f5ede4,0 0 12px #f5ede4}
 .cl b{display:block;font-weight:normal;font-size:12px;letter-spacing:.26em;text-transform:uppercase}
 .cl span{display:block;font-family:var(--zh);font-size:12px;letter-spacing:.3em;margin-top:2px}
+.cl.sj{max-width:156px;white-space:normal;line-height:1.14;
+  text-shadow:0 0 2px #f5ede4,0 0 3px #f5ede4,0 0 5px #f5ede4,0 0 9px #f5ede4,0 0 14px #f5ede4}
+.cl.sj b{font-size:11px;font-weight:bold;letter-spacing:.01em;text-transform:none}
+.cl.sj span{font-size:11px;letter-spacing:.04em;margin-top:1px}
+#side .snote{margin:0 0 8px;font-size:11.5px;line-height:1.45;color:var(--ink2)}
+#side .snote .zh{display:block;font-size:11px;color:var(--muted)}
 #loading{position:fixed;inset:0;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;font-size:15px;color:var(--muted);font-style:italic;z-index:4;pointer-events:none}
 #loading .zh{font-style:normal;font-size:13px}
 .tip{background:var(--paper);border:1px solid var(--rule);padding:6px 9px;font:13px var(--serif);color:var(--ink);box-shadow:0 6px 18px rgba(26,20,16,.12);max-width:320px;white-space:normal}
@@ -228,12 +246,14 @@ body.panel-open .zoombar{right:452px}
   .top{padding:var(--sat) 16px 0 16px;gap:10px}
   .ttl .t-zh{font-size:15px}
   .ttl .t-en{font-size:10.5px}
-  .seg{position:fixed;left:16px;top:calc(var(--top) + 56px);margin:0;z-index:16;background:rgba(245,237,228,.95)}
+  .seg{position:fixed;left:16px;top:calc(var(--top) + 64px);margin:0;z-index:16;background:rgba(245,237,228,.95)}
   .seg button{padding:5px 9px;font-size:12px}
   .seg button .en{display:none}
-  .search{position:fixed;left:16px;right:16px;top:calc(var(--top) + 10px)}
-  .search input{width:100%;background:var(--paper)}
-  .search ul{left:0;width:auto;max-height:360px}
+  .search{position:fixed;left:16px;right:16px;top:calc(var(--top) + 10px);max-width:none;margin:0;z-index:31}
+  .search input{font-size:16px;padding-right:12px}
+  .search .qk{display:none}
+  .search ul{max-height:min(420px,calc(100vh - var(--top) - 80px))}
+  .search li{padding:10px 12px}
   .wm{font-size:11px;letter-spacing:.24em}
   .wm i{height:14px}
   #side{top:auto;bottom:calc(var(--foot) + 10px);left:16px;width:auto;right:68px;max-height:58%}
@@ -247,6 +267,8 @@ body.panel-open .zoombar{right:452px}
   .foot .st,.foot .fps,.foot .hint{display:none}
   .cl b{font-size:10px;letter-spacing:.14em}
   .cl span{font-size:10px;letter-spacing:.16em}
+  .cl.sj{max-width:120px}
+  .cl.sj b,.cl.sj span{font-size:9.5px;letter-spacing:0}
   .lb b{font-size:11px}.lb span{font-size:10px}
   #panel{top:auto;left:0;right:0;bottom:0;width:auto;height:46%;transition:transform .35s cubic-bezier(.2,.8,.2,1),height .3s;border-left:0;border-right:0;border-bottom:0;border-radius:14px 14px 0 0;transform:translateY(105%);z-index:35}
   #panel.full{height:86%}
@@ -265,9 +287,9 @@ body.panel-open .zoombar{right:452px}
   .seg{margin-left:0;flex:none}
   .seg button .en{display:none}
   .seg button .zh{margin-right:0}
-  .search{flex:1 1 200px;min-width:140px;max-width:300px}
-  .search input{width:100%}
-  .search ul{width:min(420px,calc(100vw - 32px))}
+  .search{flex:1 1 240px;min-width:160px;max-width:none}
+  .search ul{left:auto;width:max(100%,400px);max-width:calc(100vw - 32px)}
+  .search input{font-size:14px}
   .wm{font-size:12px;letter-spacing:.24em;flex:none}
   .abt{flex:none}
   .foot{white-space:normal;line-height:1.3;gap:4px 14px;font-size:11.5px}
@@ -422,12 +444,13 @@ body.panel-open.panel-col .zoombar{right:18px}
   <div class="seg" id="mode" role="group" aria-label="Layout">
     <button data-m="dept" class="on"><span class="zh">按部門</span><span class="en">By department</span></button>
     <button data-m="domain"><span class="zh">按範疇</span><span class="en">By domain</span></button>
+    <button data-m="subject"><span class="zh">按題材</span><span class="en">By subject</span></button>
   </div>
-  <div class="spacer"></div>
-  <div class="search">
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8b7355" stroke-width="1.5"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
-    <input id="q" type="search" placeholder="Code, title or concept 編號、名稱或概念" autocomplete="off" aria-label="Search">
-    <ul id="qres"></ul>
+  <div class="search" role="search">
+    <svg class="si" width="18" height="18" viewBox="0 0 14 14" fill="none" stroke="#c4763c" stroke-width="1.6" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
+    <input id="q" type="search" placeholder="搜尋條例、PNAP、關鍵字… Search regulations, PNAPs, keywords" autocomplete="off" enterkeyhint="search" aria-label="Search regulations, PNAPs, keywords 搜尋" aria-controls="qres" aria-keyshortcuts="/">
+    <kbd class="qk" title="Press / to search 按 / 搜尋">/</kbd>
+    <ul id="qres" role="listbox" aria-label="Suggestions 建議"></ul>
   </div>
   <button class="abt" id="abtb" aria-haspopup="dialog" aria-controls="about"><span class="en">About</span><span class="zh">關於</span></button>
   <div class="wm">AW<i></i>DESIGN</div>
@@ -557,9 +580,9 @@ setTimeout(function(){try{b.focus();}catch(e){}},0);})();
   </div>
 </div>
 
-<script src="data.js?v=20260928d"></script>
-<script src="layout.js?v=20260928d"></script>
-<script src="search.js?v=20260928d"></script>
-<script src="app.js?v=20260928d"></script>
+<script src="data.js?v=20260928e"></script>
+<script src="layout.js?v=20260928e"></script>
+<script src="search.js?v=20260928e"></script>
+<script src="app.js?v=20260928e"></script>
 </body>
 </html>

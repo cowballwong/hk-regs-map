@@ -1,4 +1,4 @@
-"""S6: bake the force layouts (3D + 2D, by department + by domain) into the site folder layout.js.
+"""S6: bake the force layouts (3D + 2D; by department, by domain and by subject) into the site folder layout.js.
 Runs the site's own forces (app.js ?bake) in headless Chromium, so the page loads settled and animates between layouts.
 Re-run whenever data.js changes: python s6_build_data.py && python s6_bake_layout.py"""
 import os, sys

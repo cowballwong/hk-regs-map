@@ -31,7 +31,7 @@ Be polite to the government sites. The fetchers wait at least 2.5 seconds betwee
 | S5 | `s5_taxonomy_batches.py` | Writes the domain and subject taxonomy (in BD's own vocabulary) and splits the documents into tagging batches. |
 | S5 | `s5_final.py concepts \| graph \| candidates \| bridges` | Builds concepts and `graph.json`, prepares the dashed bridge candidates with text snippets, and merges the verified bridges. |
 | S6 | `s6_build_data.py` | Turns the graph into the compact `data.js` (`window.HKMAP`). |
-| S6 | `s6_bake_layout.py` | Runs the site's own force layout in headless Chromium and saves the settled positions to `layout.js`. |
+| S6 | `s6_bake_layout.py` | Runs the site's own force layout in headless Chromium and saves the settled positions to `layout.js` for all three layouts (by department, by domain and by subject; a document's primary subject is the first in its list). |
 | S7 | `s7_download.py`, `s7_extract.py`, `s7_ocr.py` | Gap filling: resumable downloads of documents missed in S4, text extraction for them, and targeted OCR of garbled pages. |
 | S7 | `s7_merge.py` | Merges `graph.json`, the checked tags and a hand-maintained `graph/fixes.json` into `graph_final.json`. |
 | S7 | `s7_artifact.py` | Optional: writes a copy of the site without the doctype, html, head and body wrapper (for hosts that supply their own) and runs page checks. |
