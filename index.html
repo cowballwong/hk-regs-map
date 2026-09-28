@@ -192,6 +192,8 @@ body.panel-open .zoombar{right:452px}
 .foot > span{flex:none}
 .foot > span.st{flex:0 1 auto}
 .foot .fps{color:var(--muted);font-size:11px;min-width:0}
+.foot .vc{color:var(--muted);font-variant-numeric:tabular-nums}
+.foot .vc[hidden]{display:none}
 
 /* ---------- S7: status (superseded / duplicate), faded rows, About ---------- */
 #panel .stat{margin:0 0 12px;font-size:12.5px;line-height:1.5;color:#4a3d33;background:#efe7dc;border-left:2px solid #8b7355;padding:7px 10px}
@@ -489,6 +491,7 @@ body.panel-open.panel-col .zoombar{right:18px}
 <footer class="foot">
   <span>Personal hobby project, not a government website. Navigation aid, not legal advice. <span class="zh">個人興趣項目，並非政府網站；僅供導航，並非法律意見。</span></span>
   <span>Data checked Sept 2026</span>
+  <span class="vc" id="visits" hidden><span class="zh">瀏覽次數</span> Visits: <span id="visitsn"></span></span>
   <span class="aw">AW DESIGN</span>
   <span class="st" id="stats"></span>
   <span class="fps" id="fps"></span>
@@ -580,9 +583,10 @@ setTimeout(function(){try{b.focus();}catch(e){}},0);})();
   </div>
 </div>
 
-<script src="data.js?v=20260928e"></script>
-<script src="layout.js?v=20260928e"></script>
-<script src="search.js?v=20260928e"></script>
-<script src="app.js?v=20260928e"></script>
+<script src="data.js?v=20260928f"></script>
+<script src="layout.js?v=20260928f"></script>
+<script src="search.js?v=20260928f"></script>
+<script src="app.js?v=20260928f"></script>
+<script src="counter.js?v=20260928f"></script>
 </body>
 </html>
