@@ -300,6 +300,34 @@ body.panel-open .zoombar{right:452px}
 /* ---------- search preview (click a dot in a search view: preview first, Open to switch) ---------- */
 #panel .pvw{padding:12px 24px 12px;background:#fbf3ea;border-bottom:1px solid #e8cfb2;border-left:3px solid var(--terra)}
 #panel .pvw[hidden]{display:none}
+#panel .pvw{flex:0 1 auto;min-height:0;max-height:64%;overflow:auto;overscroll-behavior:contain}
+@media (max-width:768px){#panel .pvw{max-height:none}#panel.pving .bd{flex:0 0 0;overflow:hidden}}
+#panel .pvd{margin-top:12px;border-top:1px solid #ecd9c4;padding-top:10px}
+#panel .pvs{margin:0 0 6px;font-size:13.5px;line-height:1.5;color:var(--ink)}
+#panel .pvs.zh{font-family:var(--zh);font-size:13px;line-height:1.7;color:var(--ink2)}
+#panel .pvxl{margin:8px 0 4px;font-size:12px;line-height:1.5;color:var(--muted)}
+#panel .pvxl .zh{display:block;font-family:var(--zh)}
+#panel .pvxl .dash{display:inline-block;width:22px;height:0;border-top:2px dashed var(--terra);vertical-align:middle;margin-right:6px;opacity:.8}
+#panel .pvd h6{margin:10px 0 3px;font-weight:normal;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);display:flex;gap:6px;align-items:baseline}
+#panel .pvd h6 .zh{letter-spacing:.06em}
+#panel .pvd h6 .k{margin-left:auto;letter-spacing:0}
+#panel .pvd ul{list-style:none;margin:0;padding:0}
+#panel .pvn{display:flex;align-items:center;gap:7px;width:100%;border:0;background:none;padding:4px 2px;text-align:left;cursor:pointer;font:inherit;font-size:12.5px;color:var(--ink);border-radius:2px;min-width:0}
+#panel .pvn:hover{background:#f6e3cf}
+#panel .pvn:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+#panel .pvn[disabled]{cursor:default;opacity:.55}
+#panel .pvn[disabled]:hover{background:none}
+#panel .pvn .sw{flex:none;width:8px;height:8px;border-radius:50%}
+#panel .pvn .c{flex:none;white-space:nowrap}
+#panel .pvn .n{flex:1;min-width:0;font-family:var(--zh);font-size:11.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel .pvn .t{flex:none;font-size:9.5px;letter-spacing:.06em;color:var(--muted);border:1px solid var(--rule);padding:0 4px;white-space:nowrap}
+#panel .pvn .t.in{color:var(--terra);border-color:var(--terra)}
+#panel .pvn .t.ex{border-style:dashed;border-color:var(--terra);color:#a95f2c}
+#panel .pvmore{margin:2px 0 0;font-size:11px;color:var(--muted)}
+#panel .pvu{margin:10px 0 0;font-size:12.5px}
+#panel .pvu a{color:var(--terra)}
+.lb.xl{background:rgba(255,253,249,.72);border:1px dashed rgba(196,118,60,.55);box-shadow:none}
+.lb.xl b{font-weight:normal;color:var(--ink2)}
 #panel .pvk{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 #panel .pvk .zh{letter-spacing:.06em}
 #panel .pvc{font-size:19px;line-height:1.25;margin:5px 0 2px;overflow-wrap:anywhere}
@@ -503,9 +531,9 @@ setTimeout(function(){try{b.focus();}catch(e){}},0);})();
   </div>
 </div>
 
-<script src="data.js"></script>
-<script src="layout.js"></script>
-<script src="search.js"></script>
-<script src="app.js"></script>
+<script src="data.js?v=20260928c"></script>
+<script src="layout.js?v=20260928c"></script>
+<script src="search.js?v=20260928c"></script>
+<script src="app.js?v=20260928c"></script>
 </body>
 </html>

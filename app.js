@@ -7,6 +7,7 @@
   if (!H) { document.getElementById('loading').textContent = 'data.js did not load'; return; }
   const N = H.nodes, E = H.solid, BR = H.dashed, GR = H.groups, DOM = H.domains, SUBJ = H.subjects;
   const MOBILE = window.matchMedia('(max-width:768px)').matches;
+  const narrow = () => window.matchMedia('(max-width:768px)').matches; // the layout on screen now (MOBILE is fixed at load)
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const norm = s => String(s || '').toLowerCase().replace(/[\s().,\-/'’"“”_:;·&]/g, '');
@@ -68,7 +69,7 @@
   L.forEach(l => { l.source = l.s0; l.target = l.t0; N[l.s0].adj.push(l); N[l.t0].adj.push(l); });
 
   // ---------------- state ----------------
-  const S = { mode: 'dept', leg: false, bridges: true, dept: { BD: true, FSD: true, LandsD: true, PlanD: true, LEG: true, EXT: true }, dom: 'all', sel: null, concept: null, hiN: new Set(), hiL: new Set(), pv: null, rowsM: null, col: false };
+  const S = { mode: 'dept', leg: false, bridges: true, dept: { BD: true, FSD: true, LandsD: true, PlanD: true, LEG: true, EXT: true }, dom: 'all', sel: null, concept: null, hiN: new Set(), hiL: new Set(), pv: null, pvX: new Set(), pvXL: new Set(), rowsM: null, col: false };
   const shownN = n => S.dept[n.g] && (S.dom === 'all' || n.dm === S.dom) && (S.leg || !HIDE_K.has(n.k));
   function applyFilter() {
     N.forEach(n => { n.vis = shownN(n); });
@@ -97,8 +98,10 @@
   });
   const colOf = n => S.mode === 'dept' ? n.cD : n.cM;
   const DIM = '#efe7dc';
-  const nodeColor = n => (S.hiN.size && !S.hiN.has(n.i) && n.i !== S.pv) ? DIM : colOf(n);
-  const nodeVal = n => n.i === S.pv ? n.v0 * 1.7 + 5 : S.hiN.size ? (n.i === S.sel ? n.v0 * 2.2 + 6 : S.hiN.has(n.i) ? n.v0 * 1.25 : n.v0 * .05) : n.v0;
+  const softC = new Map(); // a colour washed halfway to the dim tone, for the extension neighbours of a previewed dot
+  const soft = c => { let v = softC.get(c); if (!v) { const a = hex(c), d = hex(DIM); v = '#' + a.map((x, k) => Math.round(x * .5 + d[k] * .5).toString(16).padStart(2, '0')).join(''); softC.set(c, v); } return v; };
+  const nodeColor = n => n.i === S.pv ? colOf(n) : S.pvX.has(n.i) ? soft(colOf(n)) : (S.hiN.size && !S.hiN.has(n.i)) ? DIM : colOf(n);
+  const nodeVal = n => n.i === S.pv ? n.v0 * 1.7 + 5 : S.pvX.has(n.i) ? n.v0 * .7 + 1.2 : S.hiN.size ? (n.i === S.sel ? n.v0 * 2.2 + 6 : S.hiN.has(n.i) ? n.v0 * 1.25 : n.v0 * .05) : n.v0;
   const tip = n => { const w = n.fd && stWord(n); return `<div class="tip"><b>${esc(n.c)}</b>${w ? ` <span class="z">· ${esc(w[0])} ${esc(w[1])}</span>` : ''}<br>${esc(n.te || '')}<div class="z">${esc(n.tz || '')}</div></div>`; };
   const shortZh = n => { const t = (n.tz || '').replace(/[《》]/g, ''); return t.length > 16 ? t.slice(0, 15) + '…' : t; };
 
@@ -241,8 +244,11 @@
     const hiBrMat = new LM.LineMaterial({ color: 0x1a1410, linewidth: 1.6, dashed: true, dashSize: 3.2, gapSize: 2.4, transparent: true, depthWrite: false });
     const hiLines = new LS2.LineSegments2(new LSG.LineSegmentsGeometry(), hiMat); hiLines.frustumCulled = false; scene.add(hiLines);
     const hiBr = new LS2.LineSegments2(new LSG.LineSegmentsGeometry(), hiBrMat); hiBr.frustumCulled = false; scene.add(hiBr);
-    hiMat.resolution.set(W(), Hh()); hiBrMat.resolution.set(W(), Hh());
-    let hiList = [], hiBrList = [];
+    // extension lines: a previewed dot's links that lead outside the search set, dashed and faint
+    const xMat = new LM.LineMaterial({ color: 0xc4763c, linewidth: 1.3, dashed: true, dashSize: 4, gapSize: 3, transparent: true, opacity: .55, depthWrite: false });
+    const xLn = new LS2.LineSegments2(new LSG.LineSegmentsGeometry(), xMat); xLn.frustumCulled = false; xLn.visible = false; scene.add(xLn);
+    hiMat.resolution.set(W(), Hh()); hiBrMat.resolution.set(W(), Hh()); xMat.resolution.set(W(), Hh());
+    let hiList = [], hiBrList = [], xList = [];
     const LC = {
       cite: ['#a38a70', .24], roll: ['#a38a70', .22], faint: ['#b9a792', .09], tree: ['#8f8171', .38], bridge: ['#2f2520', .8],
       dim: ['#cdbfae', .07], dimBr: ['#8b7355', .12]
@@ -256,14 +262,14 @@
       inst.instanceColor.needsUpdate = true;
       const bc = bLines.geometry.attributes.color.array;
       baseL.forEach((l, j) => {
-        const c = !l.vis || (hi && S.hiL.has(l)) ? null : hi ? rgba.dim : rgba[l.kind === 'cite' ? (l.faint ? 'faint' : 'cite') : l.kind];
+        const c = !l.vis || (hi && S.hiL.has(l)) || S.pvXL.has(l) ? null : hi ? rgba.dim : rgba[l.kind === 'cite' ? (l.faint ? 'faint' : 'cite') : l.kind];
         const o = j * 8; if (!c) { bc[o + 3] = bc[o + 7] = 0; return; }
         bc[o] = bc[o + 4] = c[0]; bc[o + 1] = bc[o + 5] = c[1]; bc[o + 2] = bc[o + 6] = c[2]; bc[o + 3] = bc[o + 7] = c[3];
       });
       bLines.geometry.attributes.color.needsUpdate = true;
       const dc = dLines.geometry.attributes.color.array;
       brL.forEach((l, j) => {
-        const c = !l.vis || (hi && S.hiL.has(l)) ? null : hi ? rgba.dimBr : rgba.bridge; const o = j * 8;
+        const c = !l.vis || (hi && S.hiL.has(l)) || S.pvXL.has(l) ? null : hi ? rgba.dimBr : rgba.bridge; const o = j * 8;
         if (!c) { dc[o + 3] = dc[o + 7] = 0; return; }
         dc[o] = dc[o + 4] = c[0]; dc[o + 1] = dc[o + 5] = c[1]; dc[o + 2] = dc[o + 6] = c[2]; dc[o + 3] = dc[o + 7] = c[3];
       });
@@ -277,6 +283,7 @@
       hiBr.geometry.dispose(); hiBr.geometry = new LSG.LineSegmentsGeometry();
       if (hiBrList.length) hiBr.geometry.setPositions(new Float32Array(hiBrList.length * 6));
       hiLines.visible = hiList.length > 0; hiBr.visible = hiBrList.length > 0;
+      xList = [...S.pvXL].filter(l => l.vis); xLn.geometry.dispose(); xLn.geometry = new LSG.LineSegmentsGeometry(); xLn.visible = xList.length > 0;
     }
     const seg = (arr, list) => list.forEach((l, j) => { const a = N[l.s0], b = N[l.t0], o = j * 6; arr[o] = a.x; arr[o + 1] = a.y; arr[o + 2] = a.z; arr[o + 3] = b.x; arr[o + 4] = b.y; arr[o + 5] = b.z; });
     function writePositions() {
@@ -286,6 +293,7 @@
       seg(dLines.geometry.attributes.position.array, brL); dLines.geometry.attributes.position.needsUpdate = true; dLines.computeLineDistances();
       if (hiList.length) { const a = new Float32Array(hiList.length * 6); seg(a, hiList); hiLines.geometry.setPositions(a); }
       if (hiBrList.length) { const a = new Float32Array(hiBrList.length * 6); seg(a, hiBrList); hiBr.geometry.setPositions(a); hiBr.computeLineDistances(); }
+      if (xList.length) { const a = new Float32Array(xList.length * 6); seg(a, xList); xLn.geometry.setPositions(a); xLn.computeLineDistances(); }
     }
     // setPositions on LineSegmentsGeometry resets colours, so colours are re-applied after each position write
     const _wp = writePositions;
@@ -334,11 +342,11 @@
     // ---- picking + hover ----
     const dom = renderer.domElement; let down = null;
     const tipEl = document.createElement('div'); tipEl.style.cssText = 'position:fixed;z-index:22;pointer-events:none;display:none'; document.body.appendChild(tipEl);
-    function pickAt(cx, cy) {
+    function pickAt(cx, cy, only) {
       const rect = dom.getBoundingClientRect(), x = cx - rect.left, y = cy - rect.top, w = W(), h = Hh();
       const f = h / 2 / Math.tan(cam.fov * Math.PI / 360); let best = null, bs = Infinity;
       for (const n of N) {
-        if (!n.vis) continue; V.set(n.x, n.y, n.z).project(cam); if (V.z > 1 || V.z < -1) continue;
+        if (!n.vis || (only && !canClick(n.i))) continue; V.set(n.x, n.y, n.z).project(cam); if (V.z > 1 || V.z < -1) continue;
         const sx = (V.x + 1) / 2 * w, sy = (1 - V.y) / 2 * h, dx = sx - x, dy = sy - y; if (Math.abs(dx) > 40 || Math.abs(dy) > 40) continue;
         const sr = n.cv * f / cam.position.distanceTo(V.set(n.x, n.y, n.z)), d = Math.hypot(dx, dy);
         if (d > sr + 5) continue; const s = d - sr - (S.hiN.has(n.i) ? 3 : 0); if (s < bs) { bs = s; best = n; }
@@ -348,13 +356,13 @@
     dom.addEventListener('pointerdown', e => { down = { x: e.clientX, y: e.clientY }; stopRot(); tween = null; });
     dom.addEventListener('pointerup', e => {
       if (!down) return; const mv = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null; if (mv > 5 || e.button !== 0) return;
-      const n = pickAt(e.clientX, e.clientY); if (n) nodeClick(n.i); else bgClick();
+      const n = pickAt(e.clientX, e.clientY, true); if (n) nodeClick(n.i); else if (!pickAt(e.clientX, e.clientY, false)) bgClick();
     });
     dom.addEventListener('wheel', () => { stopRot(); tween = null; }, { passive: true });
     let lastHover = 0;
     dom.addEventListener('pointermove', e => {
       if (down || performance.now() - lastHover < 50) return; lastHover = performance.now();
-      const n = pickAt(e.clientX, e.clientY); dom.style.cursor = n ? 'pointer' : 'grab';
+      const n = pickAt(e.clientX, e.clientY, true); dom.style.cursor = n ? 'pointer' : 'grab';
       if (n) { tipEl.innerHTML = tip(n); tipEl.style.display = 'block'; tipEl.style.left = (e.clientX + 14) + 'px'; tipEl.style.top = (e.clientY + 14) + 'px'; } else tipEl.style.display = 'none';
     });
     dom.addEventListener('pointerleave', () => { tipEl.style.display = 'none'; });
@@ -393,7 +401,7 @@
       flyTo(ids, focus) { stopRot(); frameSet([...ids].map(i => N[i]).filter(n => n.vis), focus != null ? N[focus] : null, 1500, true); },
       fitAll(ms = 800) { frameSet(N.filter(n => n.vis), null, ms, false); },
       zoom(f) { stopRot(); const t = controls.target, p = cam.position; flyCam({ x: t.x + (p.x - t.x) * f, y: t.y + (p.y - t.y) * f, z: t.z + (p.z - t.z) * f }, t.clone(), 350); },
-      resize() { renderer.setSize(W(), Hh()); cam.aspect = W() / Hh(); applyOffset(); hiMat.resolution.set(W(), Hh()); hiBrMat.resolution.set(W(), Hh()); },
+      resize() { renderer.setSize(W(), Hh()); cam.aspect = W() / Hh(); applyOffset(); hiMat.resolution.set(W(), Hh()); hiBrMat.resolution.set(W(), Hh()); xMat.resolution.set(W(), Hh()); },
       info: () => renderer.info.render
     };
   }
@@ -401,15 +409,19 @@
   async function make2D() {
     const FG = (await import('https://cdn.jsdelivr.net/npm/force-graph@1.51.4/+esm')).default;
     const linkCol = l => {
+      if (S.pvXL.has(l)) return 'rgba(196,118,60,.6)';
       if (S.hiN.size) { if (!S.hiL.has(l)) return 'rgba(216,203,187,.12)'; return l.kind === 'bridge' ? '#1a1410' : l.kind === 'tree' ? 'rgba(111,92,72,.8)' : 'rgba(196,118,60,.95)'; }
       return l.kind === 'bridge' ? 'rgba(47,37,32,.8)' : l.kind === 'tree' ? 'rgba(143,129,113,.4)' : l.faint ? 'rgba(185,167,146,.14)' : 'rgba(163,138,112,.32)';
     };
     const G = new FG(stage)
       .backgroundColor('#f5ede4').nodeId('i').nodeRelSize(2.1)
       .nodeVal(nodeVal).nodeColor(nodeColor).nodeVisibility(n => n.vis).nodeLabel(null)
-      .linkVisibility(l => l.vis).linkColor(linkCol).linkWidth(l => S.hiL.has(l) ? 1.3 : .45).linkLineDash(l => l.kind === 'bridge' ? [3, 2.4] : null)
+      .linkVisibility(l => l.vis).linkColor(linkCol).linkWidth(l => S.hiL.has(l) ? 1.3 : S.pvXL.has(l) ? 1 : .45).linkLineDash(l => S.pvXL.has(l) ? [4, 3] : l.kind === 'bridge' ? [3, 2.4] : null)
       .enableNodeDrag(false)
-      .onNodeClick(n => nodeClick(n.i)).onBackgroundClick(ev => { const n = ev && pick2(ev); if (n) nodeClick(n.i); else bgClick(); })
+      // in a search view grey dots have no hit area, and lines never do, so neither reacts to a hover or a click
+      .nodePointerAreaPaint((n, c, ctx) => { if (!canClick(n.i)) return; ctx.fillStyle = c; ctx.beginPath(); ctx.arc(n.x, n.y, Math.sqrt(Math.max(0, nodeVal(n))) * 2.1 + 1, 0, 2 * Math.PI); ctx.fill(); })
+      .linkPointerAreaPaint(() => { })
+      .onNodeClick(n => { if (canClick(n.i)) nodeClick(n.i); }).onBackgroundClick(ev => { const n = ev && pick2(ev, true); if (n) nodeClick(n.i); else if (!(ev && pick2(ev, false))) bgClick(); })
       .onRenderFramePre((ctx, k) => {
         if (!stepMorph() && G.autoPauseRedraw && !G.autoPauseRedraw()) G.autoPauseRedraw(true);
         clusters.forEach(c => {
@@ -422,10 +434,10 @@
       .warmupTicks(0).cooldownTicks(0);
     // force-graph finds its hover target in the render loop, so a quick tap with no hover before it arrives as a
     // background click. Hit-test those ourselves, with a finger-sized margin.
-    function pick2(ev) {
+    function pick2(ev, only) {
       const rc = stage.getBoundingClientRect(), x = ev.clientX - rc.left, y = ev.clientY - rc.top, z = G.zoom(); let best = null, bs = Infinity;
       for (const n of N) {
-        if (!n.vis || n.x == null) continue; const p = G.graph2ScreenCoords(n.x, n.y), dx = p.x - x, dy = p.y - y;
+        if (!n.vis || n.x == null || (only && !canClick(n.i))) continue; const p = G.graph2ScreenCoords(n.x, n.y), dx = p.x - x, dy = p.y - y;
         if (Math.abs(dx) > 40 || Math.abs(dy) > 40) continue;
         const sr = Math.sqrt(Math.max(0, nodeVal(n))) * 2.1 * z, d = Math.hypot(dx, dy); if (d > sr + 10) continue;
         const sc = d - sr - (S.hiN.has(n.i) ? 4 : 0); if (sc < bs) { bs = sc; best = n; }
@@ -438,7 +450,7 @@
     const sheetH = () => $('panel').classList.contains('open') ? $('panel').offsetHeight : 0;
     return {
       G, stopRot() { },
-      refresh(what) { G.nodeColor(G.nodeColor()).nodeVal(G.nodeVal()).linkColor(G.linkColor()).linkWidth(G.linkWidth()); if (what === 'vis') G.nodeVisibility(G.nodeVisibility()).linkVisibility(G.linkVisibility()); },
+      refresh(what) { G.nodeColor(G.nodeColor()).nodeVal(G.nodeVal()).linkColor(G.linkColor()).linkWidth(G.linkWidth()).linkLineDash(G.linkLineDash()).nodePointerAreaPaint(G.nodePointerAreaPaint()); if (what === 'vis') G.nodeVisibility(G.nodeVisibility()).linkVisibility(G.linkVisibility()); },
       moved() { G.autoPauseRedraw(false); },
       toScreen(n, out) { const p = G.graph2ScreenCoords(n.x, n.y); out.x = p.x; out.y = p.y; out.d = 0; return true; },
       clusterScreen(c, out) { const g = G.graph2ScreenCoords(GC.x, GC.y), p = G.graph2ScreenCoords(c.x, c.y); out.gx = g.x; out.gy = g.y; out.x = p.x; out.y = p.y; out.r = c.r * G.zoom(); return true; },
@@ -479,9 +491,12 @@
     const lim = MOBILE ? 9 : 30;
     if (S.hiN.size) cands = [...S.hiN].map(i => N[i]).filter(n => n.vis).sort((a, b) => (b.i === S.sel) - (a.i === S.sel) || b.deg - a.deg).slice(0, MOBILE ? 10 : 26);
     else cands = N.filter(n => n.h && n.vis).sort((a, b) => a.h - b.h).slice(0, lim);
-    if (S.pv != null) cands = [N[S.pv], ...cands.filter(n => n.i !== S.pv)]; // the previewed dot is labelled first
+    if (S.pv != null) { // the previewed dot is labelled first, then the strongest results, then a few extension neighbours
+      const rest = cands.filter(n => n.i !== S.pv), ext = [...S.pvX].map(i => N[i]).filter(n => n.vis).sort((a, b) => b.deg - a.deg).slice(0, MOBILE ? 3 : 8);
+      cands = [N[S.pv], ...rest.slice(0, MOBILE ? 4 : 12), ...ext, ...rest.slice(MOBILE ? 4 : 12)];
+    }
     lbCache.forEach(o => { if (o.on) { o.el.style.display = 'none'; o.on = false; } });
-    cands.forEach(n => { const el = lbEl(n).el; el.classList.toggle('sel', n.i === S.sel); el.classList.toggle('pvl', n.i === S.pv); });
+    cands.forEach(n => { const el = lbEl(n).el; el.classList.toggle('sel', n.i === S.sel); el.classList.toggle('pvl', n.i === S.pv); el.classList.toggle('xl', S.pvX.has(n.i)); });
   }
   const pt = { x: 0, y: 0, d: 0 };
   const ring = document.createElement('div'); ring.className = 'pvring'; LB.appendChild(ring); let ringOn = false;
@@ -567,7 +582,7 @@
     if (!S.dept[n.g]) { S.dept[n.g] = true; changed = true; }
     if (S.dom !== 'all' && n.dm !== S.dom) { S.dom = 'all'; changed = true; }
     if (changed) { applyFilter(); R.refresh('vis'); buildSide(); updateClusters(); }
-    S.sel = i; S.concept = null; S.pv = null; S.rowsM = null;
+    S.sel = i; S.concept = null; noPv(); S.rowsM = null;
     const ns = new Set([i]), ls = new Set();
     n.adj.forEach(l => { if (!l.vis) return; ls.add(l); ns.add(l.s0 === i ? l.t0 : l.s0); });
     setHi(ns, ls);
@@ -575,7 +590,7 @@
     if (fly) setTimeout(() => R.flyTo(ns, i), changed ? 900 : 0);
   }
   function lightSet(rows) { // rows: [[node, mentions], ...]
-    S.sel = null; S.pv = null; S.rowsM = new Map(rows);
+    S.sel = null; noPv(); S.rowsM = new Map(rows);
     rows.forEach(([i]) => { if (!N[i].vis && !S.dept[N[i].g]) S.dept[N[i].g] = true; });
     if (S.dom !== 'all') S.dom = 'all';
     applyFilter(); R.refresh('vis'); buildSide();
@@ -607,19 +622,33 @@
     lightSet(rows); S.concept = { kw: qs.trim() };
     Panel.keyword(qs.trim(), rows); if (document.activeElement !== $('q')) $('q').value = qs.trim();
   }
-  function clearSel() { S.sel = null; S.concept = null; S.pv = null; S.rowsM = null; setHi(new Set(), new Set()); Panel.close(); navReset(); }
+  function clearSel() { S.sel = null; S.concept = null; noPv(); S.rowsM = null; setHi(new Set(), new Set()); Panel.close(); navReset(); }
   // In a search result view (concept or keyword) a click on a dot or a result row only previews that document:
   // the highlight and camera stay put, and only the Open button switches to the document's own link view.
   const inSearch = () => !!S.concept && S.sel == null;
+  // what may answer a click or hover: everything outside a search view; inside one, only the lit results,
+  // the previewed dot and its extension neighbours. Grey dots and all lines stay inert.
+  function canClick(i) { return !inSearch() || S.hiN.has(i) || i === S.pv || S.pvX.has(i); }
+  function noPv() { S.pv = null; S.pvX = new Set(); S.pvXL = new Set(); }
+  // a previewed dot's links that leave the search set: drawn dashed and faint, their far ends lit lightly
+  function extOf(i) {
+    const X = new Set(), XL = new Set(), inSet = S.hiN.has(i);
+    N[i].adj.forEach(l => {
+      if (!l.vis) return; const o = l.s0 === i ? l.t0 : l.s0;
+      if (S.hiN.has(o)) { if (!inSet) XL.add(l); return; } // inside the set the solid search lines already show it
+      X.add(o); XL.add(l);
+    });
+    return { X, XL };
+  }
   function nodeClick(i) { if (inSearch()) preview(i); else select(i); }
   function bgClick() { if (S.pv != null) unpreview(); else if (S.sel != null || S.concept) clearSel(); }
   function preview(i, reveal = true) {
     const n = N[i]; if (!n || !inSearch()) return;
-    S.pv = i; R.refresh(); updateCands();
-    if (reveal) { if (MOBILE) Panel.setMini(false); else Panel.setCol(false); } // a click must put the Open button on screen
+    const x = extOf(i); S.pv = i; S.pvX = x.X; S.pvXL = x.XL; R.refresh(); updateCands();
+    if (reveal) { if (narrow()) Panel.setMini(false); else Panel.setCol(false); } // a click must put the Open button on screen
     Panel.preview(n, S.rowsM ? S.rowsM.get(i) : undefined);
   }
-  function unpreview() { if (S.pv == null) return; S.pv = null; R.refresh(); updateCands(); Panel.preview(null); }
+  function unpreview() { if (S.pv == null) return; noPv(); R.refresh(); updateCands(); Panel.preview(null); }
   function openPreview() { const i = S.pv; if (i == null) return; if (NAV.cur) NAV.cur.pv = i; select(i); }
 
   // ---------------- side panel ----------------
@@ -628,7 +657,7 @@
     close() { this.preview(null); $('panel').classList.remove('open', 'full', 'faded', 'mini'); $('q').value = ''; document.body.classList.remove('panel-open'); this.setCol(false); R.panel(false); sheetVar(); },
     // desktop and tablet: slide the panel out to a slim rail; the state holds while you move between documents
     setCol(on) {
-      if (MOBILE) return; S.col = !!on;
+      if (narrow()) return; S.col = !!on;
       $('panel').classList.toggle('col', S.col); document.body.classList.toggle('panel-col', S.col);
       const t = $('ptab'); t.setAttribute('aria-expanded', !S.col); t.title = S.col ? '展開 Expand panel' : '收起 Collapse panel';
       t.querySelector('.ar').textContent = S.col ? '‹' : '›'; t.querySelector('.rl').textContent = S.col ? '展開' : '收起';
@@ -651,9 +680,12 @@
       box.innerHTML = `<div class="pvk"><span class="sw" style="background:${colOf(n)}"></span><span>Preview <span class="zh">預覽</span> · ${esc(g.en)} <span class="zh">${esc(g.zh)}</span>${w ? ` · ${esc(w[0])} <span class="zh">${esc(w[1])}</span>` : ''}</span></div>` +
         `<div class="pvc">${esc(n.c)}</div>${n.te && n.te !== n.c ? `<div class="pve">${esc(n.te)}</div>` : ''}${n.tz ? `<div class="pvz">${esc(n.tz)}</div>` : ''}` +
         (ment ? `<div class="pvm">${ment}</div>` : '') +
-        `<div class="pvb"><button class="pvo" type="button"><span class="zh">打開</span> Open ›</button><button class="pvx" type="button">Keep searching <span class="zh">返回結果</span></button></div>`;
-      box.hidden = false;
+        `<div class="pvb"><button class="pvo" type="button"><span class="zh">打開</span> Open ›</button><button class="pvx" type="button">Keep searching <span class="zh">返回結果</span></button></div>` +
+        this.pvDetail(n);
+      box.hidden = false; box.scrollTop = 0;
       box.querySelector('.pvo').onclick = openPreview; box.querySelector('.pvx').onclick = unpreview;
+      // a neighbour row previews that neighbour, so the search view still stays put
+      box.querySelectorAll('button.pvn').forEach(b => b.onclick = () => { const i = +b.dataset.i; if (canClick(i)) preview(i, false); });
       // mark its row in the result list, expanding a "Show all" group if the row is folded away
       const body = $('pbody'); let li = body.querySelector(`li[data-i="${n.i}"]`);
       if (!li) for (const [id, r] of Object.entries(this._rest || {})) { const more = body.querySelector(`button.more[data-more="${id}"]`); if (more && r.rows.some(x => x.o === n.i)) { more.click(); li = body.querySelector(`li[data-i="${n.i}"]`); break; } }
@@ -663,6 +695,24 @@
         if (a.top < b.top || a.bottom > b.bottom) body.scrollTop += a.top - b.top - Math.max(8, (b.height - a.height) / 3);
       }
       sheetVar();
+    },
+    pvDetail(n) {
+      let h = '';
+      if (n.se) h += `<p class="pvs">${esc(n.se)}</p>`;
+      if (n.sz) h += `<p class="pvs zh">${esc(n.sz)}</p>`;
+      const tagOf = i => i === S.pv ? '' : S.hiN.has(i) ? `<span class="t in">In results 結果內</span>` : S.pvX.has(i) ? `<span class="t ex">Extension 延伸</span>` : `<span class="t">Hidden by filters 已篩走</span>`;
+      const row = i => { const m = N[i]; return `<li><button class="pvn" type="button" data-i="${i}"${canClick(i) ? '' : ' disabled'}><span class="sw" style="background:${colOf(m)}"></span><span class="c">${esc(m.c)}</span><span class="n">${esc(m.tz || m.te || '')}</span>${tagOf(i)}</button></li>`; };
+      const LIM = 8, uniq = a => [...new Set(a)].filter(i => i !== n.i).sort((a, b) => (S.hiN.has(b) - S.hiN.has(a)) || N[b].deg - N[a].deg);
+      const list = (en, zh, ids) => ids.length ? `<h6>${en} <span class="zh">${zh}</span><span class="k">${ids.length}</span></h6><ul>${ids.slice(0, LIM).map(row).join('')}</ul>${ids.length > LIM ? `<p class="pvmore">+${ids.length - LIM} more in the full view 其餘見完整檢視</p>` : ''}` : '';
+      const cites = uniq(n.out.filter(e => e.y === 'c' || e.y === 'r').map(e => e.t)), by = uniq(n.inn.filter(e => e.y === 'c' || e.y === 'r').map(e => e.s));
+      const rel = uniq([...n.out.filter(e => e.y !== 'c' && e.y !== 'r').map(e => e.t), ...n.inn.filter(e => e.y !== 'c' && e.y !== 'r').map(e => e.s)]);
+      const br = uniq(n.br.map(b => b.s === n.i ? b.t : b.s));
+      const nx = S.pvX.size;
+      h += `<p class="pvxl">${nx ? `<span class="dash"></span>${fmt(nx)} linked document${nx === 1 ? '' : 's'} outside these results, drawn dashed on the map. Click one to preview it, or Open for its full link view.<span class="zh">${fmt(nx)} 份相關文件不在搜尋結果內，地圖上以虛線顯示；點擊可預覽，或按「打開」看完整關係。</span>`
+        : `No links outside these results.<span class="zh">沒有連往搜尋結果以外的文件。</span>`}</p>`;
+      h += list('Cites', '引用', cites) + list('Cited by', '被引用', by) + list('Explains / Amends / Supersedes', '解釋／修訂／取代', rel) + list('AI suggested', 'AI 建議關係', br);
+      if (n.u) h += `<p class="pvu"><a href="${esc(n.u)}" target="_blank" rel="noopener">Official source 官方原文 ↗</a></p>`;
+      return `<div class="pvd">${h}</div>`;
     },
     head(kindHtml, code, en, zh, meta) { $('pkind').innerHTML = kindHtml; $('pcode').textContent = code; $('pen').textContent = en || ''; $('pzh').textContent = zh || ''; $('pmeta').innerHTML = meta || ''; },
     node(n) {
@@ -932,7 +982,8 @@
     conceptRows: t => { const r = search(t); return r.c[0] ? { name: r.c[0].c[1], zh: r.c[0].c[2], rows: cDocs(r.c[0].ci).map(([i, m]) => [N[i].c, N[i].g, m]) } : null; },
     setMode, setLeg, clear: clearSel,
     preview: x => { const n = find(x); if (n) preview(n.i); return S.pv; }, openPreview, collapse: on => Panel.setCol(on), minimise: on => Panel.setMini(on),
-    pv: () => S.pv, hi: () => S.hiN.size,
+    pv: () => S.pv, hi: () => S.hiN.size, ext: () => [...S.pvX], extL: () => S.pvXL.size, canClick: i => canClick(i), hiList: () => [...S.hiN],
+    scr: i => { const n = N[i], o = { x: 0, y: 0, d: 0 }; if (!n || !n.vis || n.x == null || !R.toScreen(n, o)) return null; const rc = stage.getBoundingClientRect(); return { x: o.x + rc.left, y: o.y + rc.top, c: n.c }; },
     fps: () => fpsHist.slice(), counts: () => ({ nodes: N.filter(n => n.vis).length, links: L.filter(l => l.vis).length })
   };
 })();
