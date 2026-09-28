@@ -661,7 +661,7 @@
       $('panel').classList.toggle('col', S.col); document.body.classList.toggle('panel-col', S.col);
       const t = $('ptab'); t.setAttribute('aria-expanded', !S.col); t.title = S.col ? '展開 Expand panel' : '收起 Collapse panel';
       t.querySelector('.ar').textContent = S.col ? '‹' : '›'; t.querySelector('.rl').textContent = S.col ? '展開' : '收起';
-      R.panel($('panel').classList.contains('open') && !S.col); backUi();
+      R.panel($('panel').classList.contains('open') && !S.col); backUi(); placePvSoon();
     },
     // phones: minimise the bottom sheet to a bar with the title
     setMini(on) {
@@ -669,50 +669,65 @@
       const b = $('pmin'); b.textContent = on ? '︿' : '–'; b.setAttribute('aria-label', on ? 'Expand 展開' : 'Minimise 收起'); b.setAttribute('aria-expanded', !on);
       sheetVar();
     },
+    // the preview is a floating card over the map (placePv puts it clear of the legend, panel and controls);
+    // the panel keeps the result table, with the previewed row lit and its links tabled under it
     preview(n, m) {
-      const box = $('ppv'); $('pbody').querySelectorAll('li.pvr').forEach(li => li.classList.remove('pvr'));
-      $('panel').classList.toggle('pving', !!n);
-      if (!n) { box.hidden = true; box.innerHTML = ''; sheetVar(); return; }
+      const box = $('ppv'), body = $('pbody');
+      body.querySelectorAll('li.pvr').forEach(li => li.classList.remove('pvr'));
+      body.querySelectorAll('.pvt').forEach(t => t.remove());
+      if (!n) { box.hidden = true; box.innerHTML = ''; box.classList.remove('off', 'c'); placePv(); sheetVar(); return; }
       const g = GR[n.g] || { en: 'Other ordinances', zh: '其他條例' }, kw = !!(S.concept && S.concept.kw), w = n.fd && stWord(n);
       const ment = m === undefined ? `<span>Not in these results 不在搜尋結果內</span>`
         : m === null ? '' : m === 0 ? `<span>Tagged by AI, the exact words are not in the text 由 AI 標註，原文未有相同字眼</span>`
         : kw ? `<span>Matches in title and summary 標題及摘要符合 <b>${fmt(m)}</b></span>` : `<span>Mentions 提及 <b>${fmt(m)}</b></span>`;
-      box.innerHTML = `<div class="pvk"><span class="sw" style="background:${colOf(n)}"></span><span>Preview <span class="zh">預覽</span> · ${esc(g.en)} <span class="zh">${esc(g.zh)}</span>${w ? ` · ${esc(w[0])} <span class="zh">${esc(w[1])}</span>` : ''}</span></div>` +
+      box.innerHTML = `<div class="pvh"><div class="pvk"><span class="sw" style="background:${colOf(n)}"></span><span>Preview <span class="zh">預覽</span> · ${esc(g.en)} <span class="zh">${esc(g.zh)}</span>${w ? ` · ${esc(w[0])} <span class="zh">${esc(w[1])}</span>` : ''}</span></div>` +
+        `<button class="pvtg" type="button"></button><button class="pvcx" type="button" aria-label="Close preview 關閉預覽" title="Close 關閉">×</button>` +
         `<div class="pvc">${esc(n.c)}</div>${n.te && n.te !== n.c ? `<div class="pve">${esc(n.te)}</div>` : ''}${n.tz ? `<div class="pvz">${esc(n.tz)}</div>` : ''}` +
         (ment ? `<div class="pvm">${ment}</div>` : '') +
-        `<div class="pvb"><button class="pvo" type="button"><span class="zh">打開</span> Open ›</button><button class="pvx" type="button">Keep searching <span class="zh">返回結果</span></button></div>` +
-        this.pvDetail(n);
-      box.hidden = false; box.scrollTop = 0;
-      box.querySelector('.pvo').onclick = openPreview; box.querySelector('.pvx').onclick = unpreview;
-      // a neighbour row previews that neighbour, so the search view still stays put
-      box.querySelectorAll('button.pvn').forEach(b => b.onclick = () => { const i = +b.dataset.i; if (canClick(i)) preview(i, false); });
+        `<div class="pvb"><button class="pvo" type="button"><span class="zh">打開</span> Open ›</button><button class="pvx" type="button">Keep searching <span class="zh">返回結果</span></button></div></div>` +
+        `<div class="pvsc">${this.pvSum(n)}</div>`;
+      box.hidden = false; box.classList.remove('off'); box.querySelector('.pvsc').scrollTop = 0;
+      box.querySelector('.pvo').onclick = openPreview; box.querySelector('.pvx').onclick = unpreview; box.querySelector('.pvcx').onclick = unpreview;
+      // phones: the card folds to one line (the choice holds while you move between results)
+      const tg = box.querySelector('.pvtg');
+      tg.onclick = e => { e.stopPropagation(); S.pvCol = !box.classList.contains('c'); placePv(); };
+      box.querySelector('.pvh').onclick = e => { if (box.classList.contains('c') && !e.target.closest('button')) tg.click(); };
       // mark its row in the result list, expanding a "Show all" group if the row is folded away
-      const body = $('pbody'); let li = body.querySelector(`li[data-i="${n.i}"]`);
+      let li = body.querySelector(`li[data-i="${n.i}"]`);
       if (!li) for (const [id, r] of Object.entries(this._rest || {})) { const more = body.querySelector(`button.more[data-more="${id}"]`); if (more && r.rows.some(x => x.o === n.i)) { more.click(); li = body.querySelector(`li[data-i="${n.i}"]`); break; } }
       if (li) {
-        li.classList.add('pvr');
-        const a = li.getBoundingClientRect(), b = body.getBoundingClientRect();
-        if (a.top < b.top || a.bottom > b.bottom) body.scrollTop += a.top - b.top - Math.max(8, (b.height - a.height) / 3);
-      }
-      sheetVar();
+        li.classList.add('pvr'); li.insertAdjacentHTML('beforeend', this.pvTable(n, false));
+        const a = (li.querySelector('.m') || li).getBoundingClientRect(), b = body.getBoundingClientRect();
+        if (a.top < b.top || a.bottom > b.bottom) body.scrollTop += a.top - b.top - Math.max(8, (b.height - a.height) / 4);
+      } else body.insertAdjacentHTML('afterbegin', this.pvTable(n, true)); // an extension document: its table leads the list
+      // a table row previews that document, so the search view still stays put
+      body.querySelectorAll('.pvt button.pvn').forEach(b => b.onclick = () => { const i = +b.dataset.i; if (canClick(i)) preview(i, false); });
+      sheetVar(); placePv();
     },
-    pvDetail(n) {
+    // the card: bilingual summary, a one-line extension note, the official link
+    pvSum(n) {
       let h = '';
       if (n.se) h += `<p class="pvs">${esc(n.se)}</p>`;
       if (n.sz) h += `<p class="pvs zh">${esc(n.sz)}</p>`;
-      const tagOf = i => i === S.pv ? '' : S.hiN.has(i) ? `<span class="t in">In results 結果內</span>` : S.pvX.has(i) ? `<span class="t ex">Extension 延伸</span>` : `<span class="t">Hidden by filters 已篩走</span>`;
-      const row = i => { const m = N[i]; return `<li><button class="pvn" type="button" data-i="${i}"${canClick(i) ? '' : ' disabled'}><span class="sw" style="background:${colOf(m)}"></span><span class="c">${esc(m.c)}</span><span class="n">${esc(m.tz || m.te || '')}</span>${tagOf(i)}</button></li>`; };
-      const LIM = 8, uniq = a => [...new Set(a)].filter(i => i !== n.i).sort((a, b) => (S.hiN.has(b) - S.hiN.has(a)) || N[b].deg - N[a].deg);
-      const list = (en, zh, ids) => ids.length ? `<h6>${en} <span class="zh">${zh}</span><span class="k">${ids.length}</span></h6><ul>${ids.slice(0, LIM).map(row).join('')}</ul>${ids.length > LIM ? `<p class="pvmore">+${ids.length - LIM} more in the full view 其餘見完整檢視</p>` : ''}` : '';
-      const cites = uniq(n.out.filter(e => e.y === 'c' || e.y === 'r').map(e => e.t)), by = uniq(n.inn.filter(e => e.y === 'c' || e.y === 'r').map(e => e.s));
-      const rel = uniq([...n.out.filter(e => e.y !== 'c' && e.y !== 'r').map(e => e.t), ...n.inn.filter(e => e.y !== 'c' && e.y !== 'r').map(e => e.s)]);
-      const br = uniq(n.br.map(b => b.s === n.i ? b.t : b.s));
       const nx = S.pvX.size;
-      h += `<p class="pvxl">${nx ? `<span class="dash"></span>${fmt(nx)} linked document${nx === 1 ? '' : 's'} outside these results, drawn dashed on the map. Click one to preview it, or Open for its full link view.<span class="zh">${fmt(nx)} 份相關文件不在搜尋結果內，地圖上以虛線顯示；點擊可預覽，或按「打開」看完整關係。</span>`
-        : `No links outside these results.<span class="zh">沒有連往搜尋結果以外的文件。</span>`}</p>`;
-      h += list('Cites', '引用', cites) + list('Cited by', '被引用', by) + list('Explains / Amends / Supersedes', '解釋／修訂／取代', rel) + list('AI suggested', 'AI 建議關係', br);
+      h += `<p class="pvxl">${nx ? `<span class="dash"></span>${fmt(nx)} linked outside these results, dashed on the map · <span class="zh">${fmt(nx)} 份在結果以外，以虛線顯示</span>`
+        : `No links outside these results · <span class="zh">沒有連往結果以外的文件</span>`}</p>`;
       if (n.u) h += `<p class="pvu"><a href="${esc(n.u)}" target="_blank" rel="noopener">Official source 官方原文 ↗</a></p>`;
-      return `<div class="pvd">${h}</div>`;
+      return h;
+    },
+    // the panel: the previewed document's cites / cited-by as a table (code | title | relation | in results or extension)
+    pvTable(n, top) {
+      const rel = new Map(), put = (i, en, zh, k) => { if (i === n.i) return; const r = rel.get(i); if (r) { if (!r.l.some(x => x[0] === en)) r.l.push([en, zh]); r.k = Math.min(r.k, k); } else rel.set(i, { l: [[en, zh]], k }); };
+      n.out.forEach(e => { if (e.y === 'c' || e.y === 'r') put(e.t, 'Cites', '引用', 0); else { const d = REL[e.y] || ['Related', '相關']; put(e.t, d[0], d[1], 2); } });
+      n.inn.forEach(e => { if (e.y === 'c' || e.y === 'r') put(e.s, 'Cited by', '被引用', 1); else { const d = REL[e.y] || ['Related', '相關', 'Related', '相關']; put(e.s, d[2], d[3], 2); } });
+      n.br.forEach(b => put(b.s === n.i ? b.t : b.s, 'AI suggested', 'AI 建議', 3));
+      const tag = i => S.hiN.has(i) ? `<span class="t in">In results<br>結果內</span>` : S.pvX.has(i) ? `<span class="t ex">Extension<br>延伸</span>` : `<span class="t">Filtered<br>已篩走</span>`;
+      const ids = [...rel.keys()].sort((a, b) => (S.hiN.has(b) - S.hiN.has(a)) || (rel.get(a).k - rel.get(b).k) || N[b].deg - N[a].deg);
+      const LIM = 14, row = i => { const o = N[i], r = rel.get(i); return `<li><button class="pvn" type="button" data-i="${i}"${canClick(i) ? '' : ' disabled'} title="${esc(o.c)} ${esc(o.te || '')} ${esc(o.tz || '')}"><span class="c"><span class="sw" style="background:${colOf(o)}"></span><b>${esc(o.c)}</b></span><span class="n">${esc(o.tz || o.te || '')}</span><span class="rl">${r.l.map(x => `${x[0]} <span class="zh">${x[1]}</span>`).join('<br>')}</span>${tag(i)}</button></li>`; };
+      const head = top ? `${esc(n.c)} · not in these results <span class="zh">不在搜尋結果內</span> · links 關係 ${fmt(ids.length)}` : `Links of ${esc(n.c)} <span class="zh">關係</span> · ${fmt(ids.length)}`;
+      if (!ids.length) return `<div class="pvt${top ? ' pvtop' : ''}"><p class="pvtt">${head}</p><p class="pvmore">No citations recorded 未有引用紀錄</p></div>`;
+      return `<div class="pvt${top ? ' pvtop' : ''}"><p class="pvtt">${head}</p><div class="pvth" aria-hidden="true"><span>Code<br>編號</span><span>Title<br>名稱</span><span>Relation<br>關係</span><span>Status<br>狀態</span></div><ul>${ids.slice(0, LIM).map(row).join('')}</ul>` +
+        (ids.length > LIM ? `<p class="pvmore">+${ids.length - LIM} more: Open for the full link view 其餘按「打開」查看</p>` : '') + `</div>`;
     },
     head(kindHtml, code, en, zh, meta) { $('pkind').innerHTML = kindHtml; $('pcode').textContent = code; $('pen').textContent = en || ''; $('pzh').textContent = zh || ''; $('pmeta').innerHTML = meta || ''; },
     node(n) {
@@ -846,7 +861,43 @@
   $('pmin').onclick = e => { e.stopPropagation(); Panel.setMini(!$('panel').classList.contains('mini')); };
   document.querySelector('#panel .hd').addEventListener('click', e => { if ($('panel').classList.contains('mini') && !e.target.closest('button')) Panel.setMini(false); });
   // phones: publish the sheet height so the zoom buttons ride on top of it
-  function sheetVar() { const p = $('panel'); document.body.style.setProperty('--sheet', MOBILE && p.classList.contains('open') ? p.offsetHeight + 'px' : '0px'); }
+  function sheetVar() { const p = $('panel'); document.body.style.setProperty('--sheet', MOBILE && p.classList.contains('open') ? p.offsetHeight + 'px' : '0px'); placePvSoon(); }
+  // place the floating preview card: over the map, clear of the legend, the lines key, the zoom buttons,
+  // the panel (desktop) or the bottom sheet (phones). Where the legend leaves no room beside it, the
+  // legend shrinks to its first rows and the card sits under it.
+  function placePv() {
+    const box = $('ppv'); if (!box) return;
+    if (box.hidden) { document.body.classList.remove('pv-stack'); return; }
+    const vis = e => { if (!e) return null; const r = e.getBoundingClientRect(); return r.width && r.height ? r : null; };
+    const st = $('stage').getBoundingClientRect(), vw = document.documentElement.clientWidth, p = $('panel');
+    let left, top, width = null, bottom = st.bottom - 12;
+    if (narrow()) {
+      document.body.classList.remove('pv-stack');
+      left = 10; top = st.top + 8;
+      [document.querySelector('.search'), $('mode')].forEach(e => { const r = vis(e); if (r && r.top < top + 120) top = Math.max(top, r.bottom + 8); });
+      if (p.classList.contains('open')) bottom = Math.min(bottom, p.getBoundingClientRect().top - 8);
+      [$('side'), document.querySelector('.zoombar')].forEach(e => { const r = vis(e); if (r && r.top > top) bottom = Math.min(bottom, r.top - 8); });
+    } else {
+      const rail = vis($('prail')), right = (p.classList.contains('open') ? Math.min(p.getBoundingClientRect().left, rail ? rail.left : 1e9) : vw) - 16;
+      document.body.classList.remove('pv-stack');
+      const sr = vis($('side')), beside = sr ? sr.right + 16 : 16;
+      if (right - beside >= 380) { left = beside; top = st.top + 16; }
+      else { document.body.classList.add('pv-stack'); const s2 = vis($('side')); left = 16; top = s2 ? s2.bottom + 10 : st.top + 16; }
+      width = Math.max(240, Math.min(440, right - left));
+      [$('linesbox'), document.querySelector('.zoombar')].forEach(e => { const r = vis(e); if (r && r.left < left + width && r.right > left && r.top > top) bottom = Math.min(bottom, r.top - 10); });
+    }
+    const mh = Math.floor(bottom - top);
+    box.style.left = left + 'px'; box.style.top = top + 'px'; box.style.width = width == null ? '' : width + 'px'; box.style.maxHeight = Math.max(0, mh) + 'px';
+    const fold = narrow() && (!!S.pvCol || mh < 150), tg = box.querySelector('.pvtg'); // phones: folded by choice, or when there is too little room
+    box.classList.toggle('c', fold);
+    if (tg) { tg.textContent = fold ? '▾' : '▴'; tg.setAttribute('aria-expanded', !fold); tg.setAttribute('aria-label', fold ? 'Expand preview 展開' : 'Fold preview 收起'); }
+    box.classList.toggle('off', mh < 40); // no room at all (a full-height sheet): never cover it
+  }
+  var pvT = 0;
+  function placePvSoon() { placePv(); clearTimeout(pvT); pvT = setTimeout(placePv, 420); } // again once the panel or sheet has finished sliding
+  window.addEventListener('resize', placePvSoon);
+  $('panel').addEventListener('transitionend', e => { if (e.target === $('panel')) placePv(); });
+  $('sideh').addEventListener('click', () => setTimeout(placePv, 0));
   if (MOBILE && window.ResizeObserver) new ResizeObserver(sheetVar).observe($('panel'));
 
   // ---------------- legend + filters ----------------
