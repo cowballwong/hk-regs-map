@@ -23,6 +23,10 @@
     D5: ['Design, services and health', '設計、設備及衞生'], D6: ['Existing buildings, minor works', '現有建築物及小型工程'], D7: ['Lands and leases', '地政及契約'], D8: ['Administration and approvals', '行政及審批'] };
   const ST_ZH = { superseded: '已被取代', repealed: '已廢除', omitted: '已略去', obsolete: '已過時' };
   const stWord = n => { const s = String(n.st || '').toLowerCase(); if (n.dup != null) return ['Duplicate', '重複文件']; if (s.startsWith('cancelled')) return ['Cancelled', '已取消']; return ST_ZH[s] ? [s[0].toUpperCase() + s.slice(1), ST_ZH[s]] : null; };
+  // full-text concept index (search.js, pipeline/s8_search_index.py): per concept, [node, mentions] pairs; falls back to AI tags
+  const HS = window.HKSEARCH && window.HKSEARCH.nodes === N.length && window.HKSEARCH.c.length === H.concepts.length ? window.HKSEARCH : null;
+  const cDocs = ci => { const f = HS && HS.c[ci]; if (f) { const r = []; for (let k = 0; k < f.length; k += 2) r.push([f[k], f[k + 1]]); return r; } return H.concepts[ci][3].map(i => [i, null]); };
+  const cCount = ci => HS ? HS.c[ci].length / 2 : H.concepts[ci][3].length;
   const SG = new Map(); N.forEach((n, i) => { if (n.sg) { if (!SG.has(n.sg)) SG.set(n.sg, []); SG.get(n.sg).push(i); } });
   $('loadt').textContent = `Arranging ${fmt(N.length)} documents and provisions…`;
 
@@ -206,7 +210,14 @@
     const cam = new THREE.PerspectiveCamera(50, W() / Hh(), 1, 30000); cam.position.set(0, 330, 1150);
     scene.add(cam);
     const controls = new OC.OrbitControls(cam, renderer.domElement);
-    Object.assign(controls, { enableDamping: true, dampingFactor: .12, autoRotate: true, autoRotateSpeed: .45, screenSpacePanning: true, minDistance: 12, maxDistance: 5000 });
+    Object.assign(controls, { enableDamping: true, dampingFactor: .12, autoRotate: false, autoRotateSpeed: .45, screenSpacePanning: true, minDistance: 12, maxDistance: 5000 });
+    // auto-rotate: orbits controls.target, which is the graph centre, or the selected node once one is picked.
+    // Pauses while the user drags, zooms or the camera flies, and resumes after 3 s idle if the toggle is on.
+    let rotOn = true;
+    try { const v = localStorage.getItem('hkmap_rotate'); if (v === '0') rotOn = false; else if (v !== '1' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) rotOn = false; } catch (e) { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) rotOn = false; }
+    let rotIdle = -1e9, dragging = false;
+    controls.addEventListener('start', () => { dragging = true; rotIdle = performance.now(); });
+    controls.addEventListener('end', () => { dragging = false; rotIdle = performance.now(); });
     scene.add(new THREE.AmbientLight(0xffffff, 1.35));
     const dl = new THREE.DirectionalLight(0xffffff, 1.3); dl.position.set(250, 350, 500); cam.add(dl);
 
@@ -304,14 +315,14 @@
     const legendShift = () => $('side').classList.contains('min') ? 0 : -165;
     function applyOffset() { const s = panelShift + legendShift(); if (s) cam.setViewOffset(W(), Hh(), s, 0, W(), Hh()); else cam.clearViewOffset(); cam.updateProjectionMatrix(); }
     $('sideh').addEventListener('click', () => setTimeout(applyOffset, 0));
-    const stopRot = () => { controls.autoRotate = false; };
+    const stopRot = () => { rotIdle = performance.now(); };
     function frameSet(ns, focus, ms, tight) {
       if (!ns.length) return;
       const c = { x: 0, y: 0, z: 0 };
       if (tight) { ns.forEach(m => { c.x += m.x; c.y += m.y; c.z += m.z; }); ['x', 'y', 'z'].forEach(a => c[a] /= ns.length); }
       else ['x', 'y', 'z'].forEach(a => { let lo = Infinity, hi = -Infinity; ns.forEach(m => { lo = Math.min(lo, m[a]); hi = Math.max(hi, m[a]); }); c[a] = (lo + hi) / 2; });
       const small = ns.length <= 24;
-      if (focus) ['x', 'y', 'z'].forEach(a => c[a] = small ? c[a] * .7 + focus[a] * .3 : c[a] * .45 + focus[a] * .55);
+      if (focus) ['x', 'y', 'z'].forEach(a => c[a] = focus[a]); // orbit centre = the selected node
       const ds = ns.map(m => Math.hypot(m.x - c.x, m.y - c.y, m.z - c.z)).sort((a, b) => a - b);
       const r = Math.max(tight ? 30 : 60, ds[Math.min(ds.length - 1, Math.floor(ds.length * (tight ? (small ? 1 : .9) : .985)))] || 0);
       const fov = cam.fov * Math.PI / 180, aspect = W() / Hh();
@@ -354,6 +365,8 @@
       requestAnimationFrame(loop);
       if (stepMorph()) { dirtyPos = true; syncRegions(); }
       if (tween) stepTween();
+      controls.autoRotate = rotOn && !tween && !dragging && performance.now() - rotIdle > 3000;
+      controls.autoRotateSpeed = S.sel != null ? .6 : .45;
       controls.update();
       // clip whatever sits in the front part of the way to the focus, so a close-up is never hidden behind other nodes
       const near = Math.max(1, cam.position.distanceTo(controls.target) * (S.hiN.size ? .42 : .08));
@@ -366,6 +379,8 @@
     requestAnimationFrame(loop);
     return {
       controls, stopRot,
+      rotate(on) { if (on == null) return rotOn; rotOn = !!on; if (on) rotIdle = -1e9; else { controls.autoRotate = false; controls.enableDamping = false; controls.update(); controls.enableDamping = true; } try { localStorage.setItem('hkmap_rotate', on ? '1' : '0'); } catch (e) { } return rotOn; },
+      target: () => ({ x: controls.target.x, y: controls.target.y, z: controls.target.z }), camPos: () => ({ x: cam.position.x, y: cam.position.y, z: cam.position.z }),
       refresh() { dirtyState = true; syncRegions(); },
       moved() { dirtyPos = true; syncRegions(); },
       toScreen(n, out) { V.set(n.x, n.y, n.z).project(cam); if (V.z > 1 || V.z < -1) return false; out.x = (V.x + 1) / 2 * W(); out.y = (1 - V.y) / 2 * Hh(); out.d = V.z; return true; },
@@ -497,10 +512,38 @@
   }
   requestAnimationFrame(frame);
 
+  // ---------------- navigation history (Back button + browser back) ----------------
+  const NAV = { cur: null, stack: [], pushed: 0, restoring: false, skipPop: 0 };
+  const sameNav = (a, b) => a && b && a.t === b.t && a.v === b.v;
+  function navTo(st) {
+    if (!NAV.restoring && NAV.cur && !sameNav(NAV.cur, st)) {
+      NAV.stack.push(NAV.cur); if (NAV.stack.length > 60) NAV.stack.shift();
+      try { history.pushState({ hkmap: NAV.stack.length }, ''); NAV.pushed++; } catch (e) { }
+    }
+    NAV.cur = st; backUi();
+  }
+  function backUi() { const b = $('pback'); if (b) b.hidden = !NAV.stack.length; }
+  function goBack() {
+    const st = NAV.stack.pop(); if (!st) return; NAV.restoring = true;
+    try { if (st.t === 'n') select(st.v); else if (st.t === 'c') selectConcept(st.v); else if (st.t === 'k') selectKeyword(st.v); } finally { NAV.restoring = false; }
+    NAV.cur = st; backUi();
+  }
+  function navReset() {
+    NAV.stack = []; NAV.cur = null; backUi();
+    if (NAV.pushed > 0) { NAV.skipPop++; const k = NAV.pushed; NAV.pushed = 0; try { history.go(-k); } catch (e) { NAV.skipPop--; } }
+  }
+  window.addEventListener('popstate', () => {
+    if (NAV.skipPop > 0) { NAV.skipPop--; return; }
+    if (NAV.pushed > 0) NAV.pushed--;
+    if (NAV.stack.length) goBack();
+  });
+  $('pback').onclick = () => { if (!NAV.stack.length) return; if (NAV.pushed > 0) { try { history.back(); return; } catch (e) { } } goBack(); };
+
   // ---------------- selection ----------------
   function setHi(nodes, links) { S.hiN = nodes; S.hiL = links; R.refresh(); updateCands(); }
   function select(i, fly = true) {
     const n = N[i]; if (!n) return;
+    navTo({ t: 'n', v: i });
     let changed = false;
     if (HIDE_K.has(n.k) && !S.leg) { S.leg = true; changed = true; }
     if (!S.dept[n.g]) { S.dept[n.g] = true; changed = true; }
@@ -513,19 +556,40 @@
     Panel.node(n); if (document.activeElement !== $('q')) $('q').value = n.c;
     if (fly) setTimeout(() => R.flyTo(ns, i), changed ? 900 : 0);
   }
-  function selectConcept(ci) {
-    const c = H.concepts[ci]; if (!c) return;
-    S.sel = null; S.concept = c;
-    c[3].forEach(i => { if (!N[i].vis && !S.dept[N[i].g]) S.dept[N[i].g] = true; });
+  function lightSet(rows) { // rows: [[node, mentions], ...]
+    S.sel = null;
+    rows.forEach(([i]) => { if (!N[i].vis && !S.dept[N[i].g]) S.dept[N[i].g] = true; });
     if (S.dom !== 'all') S.dom = 'all';
     applyFilter(); R.refresh('vis'); buildSide();
-    const ns = new Set(c[3].filter(i => N[i].vis)), ls = new Set();
+    const ns = new Set(rows.map(r => r[0]).filter(i => N[i].vis)), ls = new Set();
     L.forEach(l => { if (l.vis && ns.has(l.s0) && ns.has(l.t0)) ls.add(l); });
-    setHi(ns, ls);
-    Panel.concept(c);
-    R.flyTo(ns, null);
+    setHi(ns, ls); R.flyTo(ns, null);
   }
-  function clearSel() { S.sel = null; S.concept = null; setHi(new Set(), new Set()); Panel.close(); }
+  function selectConcept(ci) {
+    const c = H.concepts[ci]; if (!c) return;
+    navTo({ t: 'c', v: ci });
+    const rows = cDocs(ci);
+    lightSet(rows); S.concept = c;
+    Panel.concept(c, rows);
+  }
+  // free-text fallback: every node whose title or summary contains the words
+  function kwRows(qs) {
+    const v = qs.trim().toLowerCase(); if (!v) return [];
+    const out = [];
+    N.forEach(n => {
+      const t = [n.te, n.tz, n.se, n.sz].map(x => String(x || '').toLowerCase()).join(' | ');
+      let k = 0, p = t.indexOf(v); while (p >= 0) { k++; p = t.indexOf(v, p + v.length); }
+      if (k) out.push([n.i, k]);
+    });
+    return out.sort((a, b) => b[1] - a[1] || (N[b[0]].deg || 0) - (N[a[0]].deg || 0));
+  }
+  function selectKeyword(qs) {
+    const rows = kwRows(qs); if (!rows.length) return;
+    navTo({ t: 'k', v: qs.trim() });
+    lightSet(rows); S.concept = { kw: qs.trim() };
+    Panel.keyword(qs.trim(), rows);
+  }
+  function clearSel() { S.sel = null; S.concept = null; setHi(new Set(), new Set()); Panel.close(); navReset(); }
 
   // ---------------- side panel ----------------
   const Panel = {
@@ -590,6 +654,7 @@
         const m = N[r.o]; const t = m.tz || m.te || '';
         let tag = '';
         if (kind === 'rel') tag = r.es.map(x => { const d = REL[x.e.y] || ['Related', '相關', 'Related', '相關']; return x.dir === 'out' ? d[0] : d[2]; }).filter((v, i, a) => a.indexOf(v) === i).join(' · ');
+        else if (r.m !== undefined) tag = r.m ? `mentions: ${r.m}` : r.m === 0 ? 'tagged' : '';
         else if (kind !== 'kids' && r.es.length > 1) tag = r.es.length + ' quotes';
         const qs = r.es.length ? `<button class="qb" aria-expanded="false">Quote 引文 ▾</button>` : '';
         const body = r.es.length ? `<div class="qs">${r.es.map(x => this.quote(x.e)).join('')}</div>` : '';
@@ -619,14 +684,31 @@
       if (!a.length) a.push(`<span style="flex-basis:auto;font-size:12px">No official link in our set 未有官方連結</span>`);
       $('psrc').innerHTML = a.join('') + `<span>Personal hobby project, not a government site · not legal advice · data checked ${esc(H.checked_en || H.checked)} · 個人興趣項目，並非政府網站，並非法律意見</span>`;
     },
-    concept(c) {
-      const docs = c[3].map(i => N[i]);
-      this.head(`<span class="sw" style="background:var(--terra)"></span><span>Concept <span class="zh">概念</span> · ${docs.length} documents 份文件</span>`, c[1], c[4].length ? 'also: ' + c[4].join(', ') : '', c[2], '');
-      let h = `<p class="note">A concept is a term the documents themselves use. It lights up every document that mentions it; it is never drawn as a line.<br><span class="zh">概念是文件本身使用的詞語。搜尋概念會同時亮起所有提及它的文件，但不會畫成連線。</span></p>`;
-      const by = {}; docs.forEach(d => (by[d.g] = by[d.g] || []).push(d));
-      Object.keys(GR).forEach(g => { if (by[g]) h += this.group(GR[g].en, GR[g].zh, by[g].sort((a, b) => b.deg - a.deg).map(d => ({ o: d.i, es: [] })), 'kids'); });
-      $('pbody').innerHTML = h; $('pbody').scrollTop = 0;
-      $('psrc').innerHTML = `<span>Personal hobby project, not a government site · not legal advice · data checked ${esc(H.checked_en || H.checked)} · 個人興趣項目，並非政府網站，並非法律意見</span>`;
+    listByDept(rows) {
+      const by = {}; rows.forEach(([i, m]) => (by[N[i].g] = by[N[i].g] || []).push({ o: i, es: [], m }));
+      let h = '';
+      [...Object.keys(GR), 'EXT'].filter((g, k, a) => a.indexOf(g) === k).forEach(g => { if (by[g]) { const gi = GR[g] || { en: 'Other ordinances', zh: '其他條例' }; h += this.group(gi.en, gi.zh, by[g], 'kids'); } });
+      return h;
+    },
+    disc() { $('psrc').innerHTML = `<span>Personal hobby project, not a government site · not legal advice · data checked ${esc(H.checked_en || H.checked)} · 個人興趣項目，並非政府網站，並非法律意見</span>`; },
+    concept(c, rows) {
+      const full = !!HS, tot = rows.reduce((a, r) => a + (r[1] || 0), 0);
+      this.head(`<span class="sw" style="background:var(--terra)"></span><span>Concept <span class="zh">概念</span> · ${fmt(rows.length)} documents 份文件</span>`, c[1], c[4].length ? 'also: ' + c[4].join(', ') : '', c[2],
+        full ? `<span>Full-text search 全文搜尋 <b>${esc(c[1])} / ${esc(c[2])}</b></span><span>Mentions 提及 <b>${fmt(tot)}</b></span>` : '');
+      $('panel').classList.remove('faded');
+      const tagged = rows.some(r => r[1] === 0);
+      let h = full ? `<p class="note">Full text, English and Chinese, most mentions first.${tagged ? ' "Tagged": topic tagged by AI without the exact words.' : ''} <span class="zh">全文搜尋（中英文），按提及次數排列。${tagged ? '「tagged」：AI 標註的主題，原文未有相同字眼。' : ''}</span></p>`
+        : `<p class="note">Documents tagged with this concept. <span class="zh">標註了此概念的文件。</span></p>`;
+      h += this.listByDept(rows);
+      $('pbody').innerHTML = h; $('pbody').scrollTop = 0; this.disc();
+      this.bind(); this.open();
+    },
+    keyword(qs, rows) {
+      this.head(`<span class="sw" style="background:var(--muted)"></span><span>Keyword <span class="zh">關鍵字</span> · ${fmt(rows.length)} results 項結果</span>`, `“${qs}”`, 'Found in titles and summaries', '在標題及摘要中找到', '');
+      $('panel').classList.remove('faded');
+      let h = `<p class="note">Not a concept, so matched in titles and summaries only. For full text try a concept, e.g. refuge floor, 露台. <span class="zh">此詞不是概念，只搜尋標題及摘要；全文搜尋請輸入概念，例如 refuge floor、露台。</span></p>`;
+      h += this.listByDept(rows.map(([i, m]) => [i, undefined]));
+      $('pbody').innerHTML = h; $('pbody').scrollTop = 0; this.disc();
       this.bind(); this.open();
     },
     bind() {
@@ -697,7 +779,7 @@
   document.querySelectorAll('#mode button').forEach(b => b.onclick = () => setMode(b.dataset.m));
 
   // ---------------- search ----------------
-  const IDX = N.map(n => ({ n, k: norm(n.c), t: norm(n.te), z: n.tz || '' }));
+  const IDX = N.map(n => ({ n, k: norm(n.c), t: norm(n.te), z: n.tz || '', s: String(n.se || '').toLowerCase() + ' ' + (n.sz || '') }));
   const CIDX = H.concepts.map((c, ci) => ({ ci, c, k: norm(c[1]), v: c[4].map(norm), z: c[2] }));
   function search(qs) {
     const v = norm(qs), raw = qs.trim(); if (!v) return { c: [], n: [] };
@@ -705,25 +787,30 @@
     for (const o of IDX) {
       let s = 0;
       if (o.k === v) s = 100; else if (o.k.startsWith(v)) s = 80; else if (o.k.includes(v)) s = 62; else if (v.length > 2 && o.t.includes(v)) s = 34; else if (raw && o.z.includes(raw)) s = 34;
+      else if ([...raw].length > 2 && o.s.includes(raw.toLowerCase())) s = 18;
       if (s) { s += Math.min(12, o.n.deg * .05) + (o.n.k === 'document' ? 4 : 0) - (HIDE_K.has(o.n.k) ? 3 : 0) - (o.n.fd ? 6 : 0); nh.push([s, o.n]); }
     }
     const ch = [];
     for (const o of CIDX) {
       let s = 0;
-      if (o.k === v) s = 95; else if (o.k.startsWith(v)) s = 72; else if (v.length > 2 && o.k.includes(v)) s = 55; else if (v.length > 2 && o.v.some(x => x.includes(v))) s = 50; else if (raw && o.z && o.z.includes(raw)) s = 60;
-      if (s && o.c[3].length) ch.push([s + Math.min(8, o.c[3].length * .4), o]);
+      if (o.k === v || (raw && o.z === raw) || o.v.includes(v)) s = 95; else if (o.k.startsWith(v)) s = 72; else if (v.length > 2 && o.k.includes(v)) s = 55; else if (v.length > 2 && o.v.some(x => x.includes(v))) s = 50; else if (raw && o.z && o.z.includes(raw)) s = 60;
+      const nd = cCount(o.ci);
+      if (s && nd) ch.push([s + Math.min(8, nd * .1), o]);
     }
     nh.sort((a, b) => b[0] - a[0]); ch.sort((a, b) => b[0] - a[0]);
-    return { c: ch.slice(0, 5).map(x => x[1]), n: nh.slice(0, 10).map(x => x[1]), cFirst: !!ch.length && (!nh.length || ch[0][0] >= nh[0][0]) };
+    // keyword row (titles + summaries), offered when no concept matches the words exactly
+    const kw = (ch.length && ch[0][0] >= 95) || [...raw].length < 2 ? 0 : kwRows(raw).length;
+    return { c: ch.slice(0, 5).map(x => x[1]), n: nh.slice(0, 10).map(x => x[1]), cFirst: !!ch.length && (!nh.length || ch[0][0] >= nh[0][0]), kw, raw };
   }
   const q = $('q'), ul = $('qres'); let hits = [], act = 0;
   function renderHits(res) {
-    const cH = res.c.map(o => ({ t: 'c', o })), nH = res.n.map(n => ({ t: 'n', n }));
-    hits = res.cFirst ? [...cH, ...nH] : [...nH, ...cH]; act = 0;
+    const cH = res.c.map(o => ({ t: 'c', o })), nH = res.n.map(n => ({ t: 'n', n })), kH = res.kw ? [{ t: 'k', q: res.raw }] : [];
+    hits = res.cFirst ? [...cH, ...nH, ...kH] : [...nH, ...cH, ...kH]; act = 0;
     let h = '', k = 0;
-    const cHtml = () => res.c.length ? `<li class="hd">Concepts 概念</li>` + res.c.map(o => `<li data-k="${k++}"><span class="sw" style="background:var(--terra)"></span><span class="c">${esc(o.c[1])}</span><span class="n zh">${esc(o.c[2])}</span><span class="tag">${o.c[3].length} doc${o.c[3].length === 1 ? '' : 's'}</span></li>`).join('') : '';
+    const cHtml = () => res.c.length ? `<li class="hd">Concepts 概念</li>` + res.c.map(o => `<li data-k="${k++}"><span class="sw" style="background:var(--terra)"></span><span class="c">${esc(o.c[1])}</span><span class="n zh">${esc(o.c[2])}</span><span class="tag">${cCount(o.ci)} doc${cCount(o.ci) === 1 ? '' : 's'}</span></li>`).join('') : '';
     const nHtml = () => res.n.length ? `<li class="hd">Documents &amp; provisions 文件及條文</li>` + res.n.map(n => { const w = n.fd && stWord(n); return `<li data-k="${k++}"${w ? ' class="old"' : ''}><span class="sw" style="background:${colOf(n)}"></span><span class="c">${esc(n.c)}</span><span class="n">${esc(n.te && n.te !== n.c ? n.te : '')} <span class="zh">${esc(n.tz || '')}</span></span>${w ? `<span class="tag o">${esc(w[0])}</span>` : ''}</li>`; }).join('') : '';
     h = res.cFirst ? cHtml() + nHtml() : nHtml() + cHtml();
+    if (res.kw) h += `<li class="hd">Keyword 關鍵字</li><li data-k="${k++}"><span class="sw" style="background:var(--muted)"></span><span class="c">“${esc(res.raw)}”</span><span class="n">in titles and summaries <span class="zh">標題及摘要</span></span><span class="tag">${res.kw}</span></li>`;
     if (!hits.length && q.value.trim()) h = `<li class="hd" style="text-transform:none;letter-spacing:0">No match. Try a code (APP-151), a title word or a concept (refuge floor). 找不到結果</li>`;
     ul.innerHTML = h; ul.classList.toggle('open', !!h); mark();
     ul.querySelectorAll('li[data-k]').forEach(li => li.onmousedown = e => { e.preventDefault(); pick(+li.dataset.k); });
@@ -731,7 +818,7 @@
   const mark = () => ul.querySelectorAll('li[data-k]').forEach(li => li.classList.toggle('act', +li.dataset.k === act));
   function pick(k) {
     const h = hits[k]; if (!h) return; ul.classList.remove('open'); q.blur();
-    if (h.t === 'c') { q.value = h.o.c[1]; selectConcept(h.o.ci); } else { q.value = h.n.c; select(h.n.i); }
+    if (h.t === 'c') { q.value = h.o.c[1]; selectConcept(h.o.ci); } else if (h.t === 'k') { selectKeyword(h.q); q.value = h.q; } else { q.value = h.n.c; select(h.n.i); }
   }
   q.addEventListener('input', () => renderHits(search(q.value)));
   q.addEventListener('keydown', e => {
@@ -749,6 +836,14 @@
   $('zin').onclick = () => R.zoom(MOBILE ? 1.4 : .72);
   $('zout').onclick = () => R.zoom(MOBILE ? 1 / 1.4 : 1.38);
   $('zfit').onclick = () => R.fitAll(700);
+  const rb = $('zrot');
+  if (rb) {
+    if (MOBILE || !R.rotate) rb.remove();
+    else {
+      const paint = () => { const on = R.rotate(); rb.classList.toggle('on', on); rb.setAttribute('aria-pressed', on); rb.title = on ? '自轉 Auto-rotate: on' : '自轉 Auto-rotate: off'; };
+      rb.onclick = () => { R.rotate(!R.rotate()); paint(); }; paint();
+    }
+  }
 
   // ---------------- ready ----------------
   updateClusters(); updateCands();
@@ -758,6 +853,8 @@
     ready: true, mobile: MOBILE, R, S,
     select: x => { const n = find(x); if (n) select(n.i); return !!n; },
     concept: t => { const r = search(t); if (r.c[0]) { selectConcept(r.c[0].ci); return r.c[0].c[1]; } return null; },
+    search: t => search(t), keyword: t => selectKeyword(t), back: () => $('pback').click(), nav: () => ({ cur: NAV.cur, depth: NAV.stack.length }),
+    conceptRows: t => { const r = search(t); return r.c[0] ? { name: r.c[0].c[1], zh: r.c[0].c[2], rows: cDocs(r.c[0].ci).map(([i, m]) => [N[i].c, N[i].g, m]) } : null; },
     setMode, setLeg, clear: clearSel,
     fps: () => fpsHist.slice(), counts: () => ({ nodes: N.filter(n => n.vis).length, links: L.filter(l => l.vis).length })
   };

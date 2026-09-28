@@ -35,6 +35,7 @@ Be polite to the government sites. The fetchers wait at least 2.5 seconds betwee
 | S7 | `s7_download.py`, `s7_extract.py`, `s7_ocr.py` | Gap filling: resumable downloads of documents missed in S4, text extraction for them, and targeted OCR of garbled pages. |
 | S7 | `s7_merge.py` | Merges `graph.json`, the checked tags and a hand-maintained `graph/fixes.json` into `graph_final.json`. |
 | S7 | `s7_artifact.py` | Optional: writes a copy of the site without the doctype, html, head and body wrapper (for hosts that supply their own) and runs page checks. |
+| S8 | `s8_search_index.py` | Full-text concept index for search: counts how often each document and provision mentions every concept (English label, aliases and Chinese label) in its extracted text and e-Legislation XML, and writes the compact `search.js` (`window.HKSEARCH`, numbers only, no text). Run after `s6_build_data.py`. |
 
 Typical rebuild after the data changes:
 
@@ -42,6 +43,7 @@ Typical rebuild after the data changes:
 python s7_merge.py
 python s6_build_data.py
 python s6_bake_layout.py
+python s8_search_index.py
 ```
 
 ## The AI steps

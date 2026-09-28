@@ -109,6 +109,10 @@ button,select,input{font:inherit;color:inherit}
 #panel .grab{display:none}
 #panel .hd{padding:20px 24px 14px;border-bottom:1px solid var(--rule);position:relative}
 #panel .x{position:absolute;right:10px;top:10px;width:32px;height:32px;border:0;background:none;font-size:22px;cursor:pointer;color:var(--muted)}
+#panel .back{display:inline-flex;align-items:center;gap:5px;margin:0 0 8px;border:1px solid var(--rule);background:var(--cream);color:var(--ink);font-size:12px;padding:3px 10px 3px 8px;cursor:pointer;border-radius:2px}
+#panel .back .zh{color:var(--terra)}
+#panel .back:hover{border-color:var(--terra)}
+#panel .back[hidden]{display:none}
 #panel .kind{display:flex;align-items:center;gap:8px;padding-right:34px;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);line-height:1.4}
 #panel .kind .zh{letter-spacing:.06em}
 #panel .code{font-size:25px;margin:8px 0 4px;letter-spacing:.01em;line-height:1.2}
@@ -134,8 +138,8 @@ button,select,input{font:inherit;color:inherit}
 #panel li .m{display:flex;align-items:center;gap:9px;padding:7px 2px;cursor:pointer}
 #panel li .m:hover{background:var(--soft)}
 #panel li .sw{width:8px;height:8px}
-#panel li .c{font-weight:bold;white-space:nowrap;max-width:48%;overflow:hidden;text-overflow:ellipsis}
-#panel li .n{color:var(--muted);font-family:var(--zh);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+#panel li .c{font-weight:bold;max-width:42%;overflow:hidden;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;flex:none}
+#panel li .n{color:var(--muted);font-family:var(--zh);font-size:12px;overflow:hidden;flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4}
 #panel li .r{font-size:10px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 #panel li .qb{border:0;background:none;cursor:pointer;color:var(--terra);font-size:11px;white-space:nowrap;padding:2px 4px}
 #panel li .qb:hover{text-decoration:underline}
@@ -158,11 +162,17 @@ button,select,input{font:inherit;color:inherit}
 .zoombar button{width:36px;height:34px;border:0;background:none;cursor:pointer;font-size:18px;line-height:1}
 .zoombar button+button{border-top:1px solid var(--rule)}
 .zoombar button:hover{color:var(--terra)}
+.zoombar #zrot{height:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:16px;color:var(--muted)}
+.zoombar #zrot .rl{font:10px var(--zh);letter-spacing:.05em}
+.zoombar #zrot.on{background:var(--terra);color:#fffdf9}
+.zoombar #zrot:focus-visible{outline:2px solid var(--ink);outline-offset:-3px}
 body.panel-open .zoombar{right:452px}
 .foot{position:fixed;left:0;right:0;bottom:0;height:var(--foot);display:flex;align-items:center;gap:18px;padding:0 max(20px,var(--sar)) var(--sab) max(20px,var(--sal));background:var(--paper);border-top:1px solid var(--rule);font-size:12px;color:var(--ink2);z-index:30;white-space:nowrap}
 .foot .zh{font-size:11.5px}
 .foot .aw{letter-spacing:.2em;font-size:11px}
-.foot .st{margin-left:auto;color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis}
+.foot .st{margin-left:auto;color:var(--muted);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto}
+.foot > span{flex:none}
+.foot > span.st{flex:0 1 auto}
 .foot .fps{color:var(--muted);font-size:11px;min-width:0}
 
 /* ---------- S7: status (superseded / duplicate), faded rows, About ---------- */
@@ -233,6 +243,7 @@ body.panel-open .zoombar{right:452px}
   body.panel-open .zoombar{right:16px}
   .foot{flex-wrap:wrap;gap:0 10px;padding:4px 16px var(--sab);height:var(--foot);align-content:center;white-space:normal;line-height:1.3;font-size:10.5px}
   .foot .zh{font-size:10px}
+  .foot > span{flex:0 1 auto;min-width:0}
   .foot .st,.foot .fps,.foot .hint{display:none}
   .cl b{font-size:10px;letter-spacing:.14em}
   .cl span{font-size:10px;letter-spacing:.16em}
@@ -246,14 +257,44 @@ body.panel-open .zoombar{right:452px}
   #panel .bd{padding:10px 18px}
   #panel .src{padding:10px 18px calc(14px + var(--sab))}
 }
+/* ---------- tablets and small laptops (769 to 1200 px) ---------- */
+@media (min-width:769px) and (max-width:1200px){
+  :root{--foot:calc(46px + var(--sab))}
+  .top{gap:14px;padding:var(--sat) max(18px,var(--sar)) 0 max(18px,var(--sal))}
+  .ttl{flex:0 1 auto}
+  .seg{margin-left:0;flex:none}
+  .seg button .en{display:none}
+  .seg button .zh{margin-right:0}
+  .search{flex:1 1 200px;min-width:140px;max-width:300px}
+  .search input{width:100%}
+  .search ul{width:min(420px,calc(100vw - 32px))}
+  .wm{font-size:12px;letter-spacing:.24em;flex:none}
+  .abt{flex:none}
+  .foot{white-space:normal;line-height:1.3;gap:4px 14px;font-size:11.5px}
+  .foot > span:first-child{flex:1 1 auto;min-width:0}
+  .foot .st,.foot .fps{display:none}
+}
+@media (min-width:769px) and (max-width:1000px){
+  .ttl .t-zh{font-size:17px;letter-spacing:.03em}
+  .ttl .t-en{display:none}
+  .abt .en{display:none}
+  .abt .zh{margin-left:0}
+  .wm{font-size:11px;letter-spacing:.2em}
+  .foot{font-size:11px}
+}
 #about .disc{border:1px solid #c4763c;background:#fbf3ea;padding:12px 14px;margin:6px 0 14px;font-size:13.5px;line-height:1.55}
 #about .disc b{display:block;margin-bottom:4px;color:#8a4a1c}
 #about .disc b .zh{margin-left:8px}
 #about .disc p{margin:4px 0}
-#notice{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--foot) + 14px);z-index:40;max-width:min(560px,calc(100% - 32px));display:flex;gap:12px;align-items:center;background:#fffdf9;border:1px solid #c4763c;padding:10px 12px 10px 14px;font-size:13px;line-height:1.45;color:#1a1410;box-shadow:0 4px 18px rgba(26,20,16,.12)}
-#notice p{margin:0}
-#notice .zh{display:block;font-family:var(--zh)}
-#notice button{flex:none;border:1px solid #c4763c;background:#c4763c;color:#fffdf9;padding:6px 14px;cursor:pointer}
+#notice{position:fixed;inset:0;z-index:90;display:flex;align-items:center;justify-content:center;background:rgba(26,20,16,.5);padding:calc(16px + var(--sat)) 16px calc(16px + var(--sab))}
+#notice[hidden]{display:none}
+#notice .nbox{width:100%;max-width:460px;background:#fffdf9;border:1px solid #c4763c;border-top:4px solid #c4763c;padding:22px 22px 18px;box-shadow:0 24px 70px rgba(26,20,16,.3);color:#1a1410}
+#notice h2{margin:0 0 10px;font-weight:normal;font-size:19px;line-height:1.3}
+#notice h2 .zh{display:block;font-size:16px;font-weight:700;letter-spacing:.04em;margin-top:2px}
+#notice p{margin:0 0 8px;font-size:14px;line-height:1.55}
+#notice p.zh{font-family:var(--zh);font-size:13.5px;line-height:1.75;color:#4a3d33}
+#notice .row2{display:flex;justify-content:flex-end;margin-top:14px}
+#notice button{border:1px solid #c4763c;background:#c4763c;color:#fffdf9;padding:8px 22px;cursor:pointer;font-size:14px}
 #notice button:focus-visible{outline:2px solid #1a1410;outline-offset:2px}
 </style>
 </head>
@@ -287,6 +328,7 @@ body.panel-open .zoombar{right:452px}
   <div class="grab"></div>
   <div class="hd">
     <button class="x" id="px" aria-label="Close">×</button>
+    <button class="back" id="pback" type="button" hidden aria-label="Back to the previous selection">‹ <span class="zh">上一步</span> Back</button>
     <div class="kind" id="pkind"></div>
     <div class="code" id="pcode"></div>
     <div class="en" id="pen"></div>
@@ -297,20 +339,32 @@ body.panel-open .zoombar{right:452px}
   <div class="src" id="psrc"></div>
 </aside>
 
-<div class="zoombar"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit all" style="font-size:13px">⤢</button></div>
+<div class="zoombar"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zfit" aria-label="Fit all" style="font-size:13px">⤢</button><button id="zrot" type="button" aria-label="自轉 Auto-rotate" aria-pressed="true"><span aria-hidden="true">⟳</span><span class="rl" aria-hidden="true">自轉</span></button></div>
 
 <footer class="foot">
   <span>Personal hobby project, not a government website. Navigation aid, not legal advice. <span class="zh">個人興趣項目，並非政府網站；僅供導航，並非法律意見。</span></span>
-  <span>Data checked September 2026.</span>
+  <span>Data checked Sept 2026</span>
   <span class="aw">AW DESIGN</span>
   <span class="st" id="stats"></span>
   <span class="fps" id="fps"></span>
 </footer>
 
-<div id="notice" role="note">
-  <p><b>Personal hobby project.</b> Not an official Hong Kong Government website and not legal advice. <span class="zh">個人興趣項目，並非香港特區政府官方網站，亦非法律意見。</span></p>
-  <button id="noticex" type="button">OK</button>
+<div id="notice" role="dialog" aria-modal="true" aria-labelledby="noticet">
+  <div class="nbox">
+    <h2 id="noticet">Personal hobby project<span class="zh">個人興趣項目</span></h2>
+    <p>This is not an official Hong Kong Government website and is not legal advice. Always rely on the official documents.</p>
+    <p class="zh">本網站並非香港特區政府官方網站，亦非法律意見。一切以官方文件為準。</p>
+    <div class="row2"><button id="noticex" type="button">OK 明白</button></div>
+  </div>
 </div>
+<script>
+(function(){var n=document.getElementById('notice');if(!n)return;var k='hkmap_notice_ok',b=document.getElementById('noticex');
+try{if(localStorage.getItem(k)==='1'){n.hidden=true;return;}}catch(e){}
+function trap(e){if(n.hidden)return;if(e.key==='Tab'){e.preventDefault();b.focus();}else if(e.target!==b){e.stopImmediatePropagation();if(e.key!=='Enter'&&e.key!==' ')e.preventDefault();}}
+document.addEventListener('keydown',trap,true);
+b.addEventListener('click',function(){n.hidden=true;document.removeEventListener('keydown',trap,true);try{localStorage.setItem(k,'1');}catch(e){}});
+setTimeout(function(){try{b.focus();}catch(e){}},0);})();
+</script>
 
 <div id="about" role="dialog" aria-modal="true" aria-labelledby="abth">
   <div class="box">
@@ -383,11 +437,7 @@ body.panel-open .zoombar{right:452px}
 
 <script src="data.js"></script>
 <script src="layout.js"></script>
+<script src="search.js"></script>
 <script src="app.js"></script>
-<script>
-(function(){var n=document.getElementById('notice');if(!n)return;var k='hkmap_notice_ok';
-try{if(localStorage.getItem(k)==='1'){n.hidden=true;}}catch(e){}
-document.getElementById('noticex').addEventListener('click',function(){n.hidden=true;try{localStorage.setItem(k,'1');}catch(e){}});})();
-</script>
 </body>
 </html>
